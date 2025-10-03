@@ -1,0 +1,521 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap');
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --font-size: 14px;
+  --background: #ffffff;
+  --foreground: oklch(0.145 0 0);
+  
+  /* Gutzo Brand Colors */
+  --gutzo-primary: #E7600E;
+  --gutzo-selected: #026254;
+  --gutzo-highlight: #D9E86F;
+  --gutzo-primary-hover: #D14808;
+  --gutzo-selected-hover: #014A40;
+  
+  /* Auth Colors */
+  --auth-green: #0B5F3B;
+  --auth-orange: #FF6D00;
+  
+  --card: #ffffff;
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: #030213;
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.95 0.0058 264.53);
+  --secondary-foreground: #030213;
+  --muted: #ececf0;
+  --muted-foreground: #717182;
+  --accent: #e9ebef;
+  --accent-foreground: #030213;
+  --destructive: #d4183d;
+  --destructive-foreground: #ffffff;
+  --border: rgba(0, 0, 0, 0.1);
+  --input: transparent;
+  --input-background: #f3f3f5;
+  --switch-background: #cbced4;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: #030213;
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.145 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.145 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.396 0.141 25.723);
+  --destructive-foreground: oklch(0.637 0.237 25.331);
+  --border: oklch(0.269 0 0);
+  --input: oklch(0.269 0 0);
+  --ring: oklch(0.439 0 0);
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(0.269 0 0);
+  --sidebar-ring: oklch(0.439 0 0);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  
+  /* Gutzo Brand Colors */
+  --color-gutzo-primary: var(--gutzo-primary);
+  --color-gutzo-selected: var(--gutzo-selected);
+  --color-gutzo-highlight: var(--gutzo-highlight);
+  --color-gutzo-primary-hover: var(--gutzo-primary-hover);
+  --color-gutzo-selected-hover: var(--gutzo-selected-hover);
+  
+  /* Auth Colors */
+  --color-auth-green: var(--auth-green);
+  --color-auth-orange: var(--auth-orange);
+  
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-switch-background: var(--switch-background);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', 'Poppins', sans-serif;
+  }
+}
+
+/**
+ * Base typography. This is not applied to elements which have an ancestor with a Tailwind text class.
+ */
+@layer base {
+  :where(:not(:has([class*=" text-"]), :not(:has([class^="text-"])))) {
+    /* Mobile-first: Smaller text sizes for mobile */
+    h1 {
+      font-size: 1.5rem; /* 24px - Compact for mobile */
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    h2 {
+      font-size: 1.25rem; /* 20px - Compact for mobile */
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    h3 {
+      font-size: 1.125rem; /* 18px - Compact for mobile */
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    h4 {
+      font-size: 1rem; /* 16px - Base size for mobile */
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    p {
+      font-size: 0.875rem; /* 14px - Compact for mobile */
+      font-weight: var(--font-weight-normal);
+      line-height: 1.5;
+    }
+
+    label {
+      font-size: 0.875rem; /* 14px - Compact for mobile */
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    button {
+      font-size: 1rem; /* 16px - Compact for mobile touch */
+      font-weight: var(--font-weight-medium);
+      line-height: 1.5;
+    }
+
+    input {
+      font-size: 1rem; /* 16px - Prevent zoom on iOS */
+      font-weight: var(--font-weight-normal);
+      line-height: 1.5;
+    }
+
+    /* Tablet and up: Increase text sizes for better web readability */
+    @media (min-width: 768px) {
+      h1 {
+        font-size: 2rem; /* 32px - Larger for web */
+      }
+
+      h2 {
+        font-size: 1.75rem; /* 28px - Larger for web */
+      }
+
+      h3 {
+        font-size: 1.5rem; /* 24px - Larger for web */
+      }
+
+      h4 {
+        font-size: 1.25rem; /* 20px - Larger for web */
+      }
+
+      p {
+        font-size: 1rem; /* 16px - Standard web reading size */
+      }
+
+      label {
+        font-size: 1rem; /* 16px - Better for web forms */
+      }
+
+      button {
+        font-size: 1.125rem; /* 18px - Larger CTAs for web */
+      }
+
+      input {
+        font-size: 1rem; /* 16px - Standard web input size */
+      }
+    }
+
+    /* Large desktop: Even larger text for better readability */
+    @media (min-width: 1024px) {
+      h1 {
+        font-size: 2.25rem; /* 36px - Very prominent for large screens */
+      }
+
+      h2 {
+        font-size: 2rem; /* 32px - Strong hierarchy for large screens */
+      }
+
+      h3 {
+        font-size: 1.75rem; /* 28px - Clear section headers */
+      }
+
+      h4 {
+        font-size: 1.5rem; /* 24px - Distinct subsections */
+      }
+
+      p {
+        font-size: 1.125rem; /* 18px - Comfortable reading on large screens */
+      }
+
+      label {
+        font-size: 1.125rem; /* 18px - Clear form labels */
+      }
+
+      button {
+        font-size: 1.25rem; /* 20px - Prominent CTAs for desktop */
+      }
+
+      input {
+        font-size: 1.125rem; /* 18px - Comfortable input text */
+      }
+    }
+  }
+}
+
+html {
+  font-size: var(--font-size);
+}
+
+/* Custom utility classes */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* Internet Explorer 10+ */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar { 
+  display: none;  /* Safari and Chrome */
+}
+
+.line-clamp-2 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* Enhanced backdrop blur support */
+.backdrop-blur-sm {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Smooth transitions for category interactions */
+.category-transition {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Focus states for better accessibility */
+.focus-ring:focus-visible {
+  outline: 2px solid var(--gutzo-primary);
+  outline-offset: 2px;
+}
+
+/* Category bar specific styles - Swiggy inspired */
+.category-scroll-container {
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.category-scroll-container::-webkit-scrollbar {
+  display: none;
+}
+
+/* Enhanced category item styling */
+.swiggy-category-image {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.swiggy-category-image:hover {
+  transform: scale(1.05);
+}
+
+/* Ring utilities for category selection */
+.ring-3 {
+  box-shadow: 0 0 0 3px rgb(2 98 84 / 1);
+}
+
+.ring-offset-2 {
+  box-shadow: 0 0 0 2px white, 0 0 0 3px rgb(2 98 84 / 1);
+}
+
+/* Enhanced category item transitions */
+.category-item-transition {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), 
+              box-shadow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.category-item-transition:hover {
+  transform: scale(1.05);
+}
+
+/* Responsive product details panel */
+.product-details-panel {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.12);
+}
+
+/* Responsive panel width adjustments */
+@media (min-width: 1024px) and (max-width: 1280px) {
+  .product-details-panel {
+    width: 45% !important;
+  }
+}
+
+@media (min-width: 1280px) {
+  .product-details-panel {
+    width: 40% !important;
+  }
+}
+
+.product-details-backdrop {
+  transition: opacity 0.3s ease-out;
+}
+
+/* Safe area adjustments for mobile */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .mobile-safe-area {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+  }
+}
+
+/* Mobile product scrolling optimization */
+@media (max-width: 1023px) {
+  .mobile-product-scroll {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    scroll-snap-type: none;
+  }
+  
+  .mobile-product-scroll::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Ensure proper stacking for panels */
+.z-40 {
+  z-index: 40;
+}
+
+.z-50 {
+  z-index: 50;
+}
+
+/* Subtle unavailable product states */
+.text-gray-450 {
+  color: rgb(156, 163, 175); /* Between gray-400 and gray-500 */
+}
+
+.bg-gray-75 {
+  background-color: rgb(249, 250, 251); /* Very light gray */
+}
+
+.bg-gray-150 {
+  background-color: rgb(243, 244, 246); /* Slightly darker than gray-100 */
+}
+
+/* Quantity selector optimistic animations */
+.quantity-pulse {
+  animation: quantityPulse 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes quantityPulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Cart strip smooth animations */
+.cart-strip-enter {
+  animation: cartStripSlideIn 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes cartStripSlideIn {
+  0% {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Enhanced cart strip transitions */
+.cart-strip-transition {
+  transition: all 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  will-change: transform, width, left, right;
+}
+
+/* Mobile responsive cart strip */
+@media (max-width: 768px) {
+  .cart-strip-mobile {
+    width: 100% !important;
+    left: 0 !important;
+    right: 0 !important;
+    transform: none !important;
+    max-width: none !important;
+    min-width: auto !important;
+  }
+}
+
+/* Number change animation for cart strip */
+.number-change {
+  animation: numberBounce 0.25s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+@keyframes numberBounce {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Ripple effect for buttons */
+.button-ripple {
+  position: relative;
+  overflow: hidden;
+}
+
+.button-ripple::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: currentColor;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  transition: width 0.3s ease, height 0.3s ease, opacity 0.3s ease;
+}
+
+.button-ripple:active::before {
+  width: 200px;
+  height: 200px;
+  opacity: 0.2;
+  transition: width 0s, height 0s, opacity 0.1s;
+}

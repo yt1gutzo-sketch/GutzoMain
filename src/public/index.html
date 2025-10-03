@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gutzo - Healthy Meals Marketplace</title>
+    <meta name="description" content="Discover healthy meal vendors in Coimbra. Fresh, nutritious meals delivered to your doorstep.">
+    
+    <!-- Google Maps API Key - Will be injected at runtime -->
+    <meta name="google-maps-api-key" content="">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    
+    <!-- Preconnect to Google Maps for better performance -->
+    <link rel="preconnect" href="https://maps.googleapis.com">
+    <link rel="preconnect" href="https://maps.gstatic.com" crossorigin>
+    
+    <script>
+        // Inject Google Maps API key from environment variable at runtime
+        (function() {
+            try {
+                // For Figma Make environment, try multiple sources
+                let apiKey = null;
+                
+                // Check various window properties that Figma Make might use
+                if (typeof window !== 'undefined') {
+                    apiKey = window.GOOGLE_MAPS_API_KEY || 
+                             window.__GOOGLE_MAPS_API_KEY__ || 
+                             (window.__ENV__ && window.__ENV__.GOOGLE_MAPS_API_KEY);
+                }
+                
+                // Try to get from global process if available (but safely)
+                if (!apiKey && typeof process !== 'undefined' && process.env) {
+                    apiKey = process.env.GOOGLE_MAPS_API_KEY;
+                }
+                
+                // Template replacement (for build-time injection)
+                if (!apiKey) {
+                    const buildTimeKey = '%GOOGLE_MAPS_API_KEY%';
+                    if (buildTimeKey !== '%GOOGLE_MAPS_API_KEY%') {
+                        apiKey = buildTimeKey;
+                    }
+                }
+                
+                if (apiKey && apiKey !== 'YOUR_GOOGLE_MAPS_API_KEY_HERE') {
+                    const metaTag = document.querySelector('meta[name="google-maps-api-key"]');
+                    if (metaTag) {
+                        metaTag.setAttribute('content', apiKey);
+                    }
+                    window.GOOGLE_MAPS_API_KEY = apiKey;
+                    console.log('✅ Google Maps API key injected via HTML script');
+                } else {
+                    console.warn('⚠️ Google Maps API key not found in HTML injection script');
+                }
+            } catch (error) {
+                console.warn('⚠️ Error injecting Google Maps API key:', error);
+            }
+        })();
+    </script>
+</head>
+<body>
+    <div id="root"></div>
+</body>
+</html>
