@@ -67,7 +67,7 @@ export function Header({ onShowLogin, onLogout, onShowProfile, onShowCart, onSho
                   ? 'text-gutzo-selected bg-gutzo-highlight/20 hover:bg-gutzo-highlight/30' 
                   : 'text-orange-600 bg-orange-50 hover:bg-orange-100'
               }`}
-              onClick={isAuthenticated ? (() => onShowAddressList?.()) : refreshLocation}
+              onClick={isAuthenticated ? (() => { console.log('Header: onShowAddressList called'); onShowAddressList?.(); }) : refreshLocation}
               title={
                 isAuthenticated 
                   ? "Click to manage delivery addresses" 

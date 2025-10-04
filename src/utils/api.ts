@@ -1,6 +1,46 @@
 import { supabase } from './supabase/client';
 
 class ApiService {
+  // Fetch all addresses for a user
+  async getUserAddresses(phone: string) {
+    return this.request(`/user-addresses/${encodeURIComponent(phone)}`, {
+      method: 'GET',
+    });
+  }
+
+  // Fetch available address types for a user
+  async getAvailableAddressTypes(phone: string) {
+    return this.request(`/user-addresses/${encodeURIComponent(phone)}/available-types`, {
+      method: 'GET',
+    });
+  }
+
+  // Set default address for a user
+  async setDefaultAddress(addressId: string, phone: string) {
+    return this.request(`/user-addresses/${addressId}/set-default`, {
+      method: 'POST',
+      body: { userPhone: phone },
+    });
+  }
+  // Address Creation
+  async createAddress(addressData: any) {
+    return this.request('/user-addresses', {
+      method: 'POST',
+      body: addressData,
+    });
+  }
+
+  // Address Update
+  async updateAddress(addressId: string, addressData: any) {
+    return this.request(`/user-addresses/${addressId}`, {
+      method: 'PUT',
+      body: addressData,
+    });
+  }
+  // Address Deletion
+  async deleteAddress(addressId: string) {
+    return this.request(`/user-addresses/${addressId}`, { method: 'DELETE' });
+  }
   private async request(endpoint: string, options: { method?: string, body?: any, headers?: any } = {}) {
     const functionName = 'gutzo-api';
     const invokePath =  `${functionName}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
@@ -8,8 +48,13 @@ class ApiService {
     try {
       console.log(`Invoking function: ${invokePath} with method ${options.method || 'POST'}`);
 
+      const allowedMethods = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'];
+      const method = options.method && allowedMethods.includes(options.method.toUpperCase())
+        ? options.method.toUpperCase() as 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
+        : 'POST';
+
       const { data, error } = await supabase.functions.invoke(invokePath, {
-        method: options.method,
+        method,
         body: options.body, // supabase.functions.invoke handles JSON stringification
         headers: options.headers,
       });
@@ -201,6 +246,36 @@ class ApiService {
       return false;
     }
   }
+
+    // User Authentication
+    async validateUser(phone: string) {
+      const formattedPhone = phone.startsWith('+91') ? phone : `+91${phone}`;
+      return this.request('/validate-user', {
+        method: 'POST',
+        body: { phone: formattedPhone },
+      });
+    }
+
+    async getUser(phone: string) {
+      const formattedPhone = phone.startsWith('+91') ? phone : `+91${phone}`;
+      return this.request('/get-user', {
+        method: 'POST',
+        body: { phone: formattedPhone },
+      });
+    }
+
+    async createUser(authData: { phone: string; name: string; verified: boolean; email?: string | null }) {
+      const formattedPhone = authData.phone.startsWith('+91') ? authData.phone : `+91${authData.phone}`;
+      return this.request('/create-user', {
+        method: 'POST',
+        body: {
+          phone: formattedPhone,
+          name: authData.name || 'User',
+          verified: authData.verified,
+          email: authData.email || null,
+        },
+      });
+    }
 }
 
 export const apiService = new ApiService();

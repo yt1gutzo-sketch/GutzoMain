@@ -72,6 +72,9 @@ function AppContent() {
   // Address management states
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [showAddressPanel, setShowAddressPanel] = useState(false);
+  useEffect(() => {
+    console.log('AppContent: showAddressPanel changed:', showAddressPanel);
+  }, [showAddressPanel]);
 
   // Authentication is now handled by AuthContext
   // The old manual validation logic has been replaced with a robust AuthContext system
@@ -280,6 +283,7 @@ function AppContent() {
 
   const handleShowAddressList = () => {
     if (isAuthenticated) {
+      console.log('handleShowAddressList: setting showAddressPanel to true');
       setShowAddressPanel(true);
     } else {
       handleShowLogin();

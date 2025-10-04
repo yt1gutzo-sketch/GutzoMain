@@ -3,22 +3,13 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "../ui/button";
 import { Avatar, AvatarFallback } from "../ui/avatar";
 import { Input } from "../ui/input";
+
+import { UserAddress } from '../../types/address';
 import { AddressModal } from "./AddressModal";
 import { OrdersPanel } from "../OrdersPanel";
+import { apiService } from '../../utils/api';
 
 type ProfilePanelContent = 'profile' | 'orders' | 'address';
-
-interface Address {
-  id: string;
-  complete_address: string;
-  floor?: string;
-  landmark?: string;
-  area: string;
-  type: 'Home' | 'Work' | 'Hotel' | 'Other';
-  is_default?: boolean;
-  phone?: string;
-  created_at: string;
-}
 
 interface ProfilePanelProps {
   isOpen: boolean;
@@ -57,7 +48,7 @@ export function ProfilePanel({ isOpen, onClose, onLogout, content, userInfo, onV
   const [userDataLoading, setUserDataLoading] = useState(false);
   const [realOrders, setRealOrders] = useState<any[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
-  const [realAddresses, setRealAddresses] = useState<Address[]>([]);
+  const [realAddresses, setRealAddresses] = useState<UserAddress[]>([]);
   const [addressesLoading, setAddressesLoading] = useState(false);
 
   // Profile editing state
@@ -69,14 +60,14 @@ export function ProfilePanel({ isOpen, onClose, onLogout, content, userInfo, onV
 
   // Address modal state
   const [showAddressModal, setShowAddressModal] = useState(false);
-  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [addresses, setAddresses] = useState<UserAddress[]>([]);
   const [loadingAddresses, setLoadingAddresses] = useState(false);
   const [deletingAddressId, setDeletingAddressId] = useState<string | null>(null);
   const addressListRef = useRef<HTMLDivElement>(null);
 
   // Supabase edge function configuration
-  const SUPABASE_URL = 'https://jkafnrpojqzfvertyrwc.supabase.co/functions/v1/make-server-6985f4e9';
-  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImprYWZucnBvanF6ZnZlcnR5cndjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc3OTA4NDQsImV4cCI6MjA3MzM2Njg0NH0.xLhgq-S8K1Ho40OptegwkcAG-4TCWoJXnHGG1PXLP10';
+  //const SUPABASE_URL = 'https://jkafnrpojqzfvertyrwc.supabase.co/functions/v1/make-server-6985f4e9';
+  //const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImprYWZucnBvanF6ZnZlcnR5cndjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc3OTA4NDQsImV4cCI6MjA3MzM2Njg0NH0.xLhgq-S8K1Ho40OptegwkcAG-4TCWoJXnHGG1PXLP10';
 
   // Get user data from localStorage if not provided
   const getUserData = () => {
@@ -105,105 +96,31 @@ export function ProfilePanel({ isOpen, onClose, onLogout, content, userInfo, onV
     setTempEmail(displayEmail || '');
   }, [displayName, displayEmail]);
 
-  // Fetch real user profile data from cloud edge function
+  // Fetch real user profile data using apiService
   const fetchUserProfile = async () => {
     if (!userData.phone) return;
-    
     setUserDataLoading(true);
     try {
-      console.log('📱 Fetching user profile from Supabase cloud edge function...');
-      console.log('🔗 Request URL:', `${SUPABASE_URL}/get-user`);
-      console.log('📞 Phone number:', userData.phone);
-      
-      const response = await fetch(`${SUPABASE_URL}/get-user`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ phone: userData.phone })
-      });
-
-      console.log('📡 Response status:', response.status);
-      console.log('📡 Response headers:', Object.fromEntries(response.headers.entries()));
-
-      // Get response text first to debug what we're actually receiving
-      const responseText = await response.text();
-      console.log('📄 Raw response text:', responseText);
-
-      if (response.ok) {
-        try {
-          // Try to parse as JSON
-          const profileData = JSON.parse(responseText);
-          console.log('✅ User profile fetched from cloud edge function:', profileData);
-          
-          // Check if user exists and has data
-          if (profileData.userExists && profileData.name) {
-            setRealUserData({
-              id: profileData.id,
-              name: profileData.name,
-              phone: profileData.phone,
-              email: profileData.email || '',
-              verified: profileData.verified,
-              created_at: profileData.created_at
-            });
-          } else if (profileData.userExists === false) {
-            console.log('ℹ️ User not found in database');
-          } else {
-            console.log('ℹ️ User exists but no additional data found');
-          }
-        } catch (parseError) {
-          console.error('❌ Failed to parse response as JSON:', parseError);
-          console.error('❌ Response was not valid JSON. Raw response:', responseText);
-        }
+      const profileData = await apiService.getUser(userData.phone);
+      if (profileData && profileData.name) {
+        setRealUserData(profileData);
       } else {
-        console.error('❌ HTTP Error:', response.status, response.statusText);
-        console.error('❌ Error response body:', responseText);
-        
-        // Try to parse error response as JSON if possible
-        try {
-          const errorData = JSON.parse(responseText);
-          console.error('❌ Parsed error data:', errorData);
-        } catch (parseError) {
-          console.error('❌ Error response was not JSON:', responseText);
-        }
+        console.log('ℹ️ User not found or no additional data found');
       }
     } catch (error) {
-      console.error('❌ Network/Fetch error:', error);
-      console.error('❌ Error details:', {
-        name: error.name,
-        message: error.message,
-        stack: error.stack
-      });
+      console.error('❌ Error fetching user profile:', error);
     } finally {
       setUserDataLoading(false);
     }
   };
 
-  // Fetch real orders data
+  // Fetch real orders data using apiService
   const fetchUserOrders = async () => {
     if (!userData.phone) return;
-    
     setOrdersLoading(true);
     try {
-      console.log('📦 Fetching user orders from database...');
-      
-      const response = await fetch(`${SUPABASE_URL}/user/orders`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ phone: userData.phone })
-      });
-
-      if (response.ok) {
-        const ordersData = await response.json();
-        console.log('✅ User orders fetched:', ordersData);
-        setRealOrders(ordersData);
-      } else {
-        console.error('❌ Failed to fetch user orders');
-      }
+      const ordersData = await apiService.getUserCart(userData.phone);
+      setRealOrders(ordersData?.items || []);
     } catch (error) {
       console.error('❌ Error fetching user orders:', error);
     } finally {
@@ -211,61 +128,31 @@ export function ProfilePanel({ isOpen, onClose, onLogout, content, userInfo, onV
     }
   };
 
-  // Fetch real addresses data
+  // Fetch real addresses data using apiService
   const fetchUserAddresses = async () => {
     if (!userData.phone) return;
-    
     setAddressesLoading(true);
     try {
-      console.log('🏠 Attempting to fetch user addresses from database...');
-      
-      const response = await fetch(`${SUPABASE_URL}/user/addresses`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ phone: userData.phone })
-      });
-
-      if (response.ok) {
-        const addressesData = await response.json();
-        console.log('✅ User addresses fetched from database:', addressesData);
-        setRealAddresses(addressesData);
+      // Use dedicated address API to fetch addresses from Supabase edge function
+      const response = await apiService.getUserAddresses(userData.phone);
+      console.log('[ProfilePanel] API getUserAddresses response:', response);
+      if (Array.isArray(response)) {
+        setRealAddresses(response);
+      } else if (response.success && Array.isArray(response.data)) {
+        setRealAddresses(response.data);
       } else {
-        console.log('ℹ️ Database address endpoint not available, using local storage fallback');
-        // Gracefully fallback to mock data for addresses
-        await fetchAddressesMock();
+        setRealAddresses([]);
       }
     } catch (error) {
-      console.log('ℹ️ Database connection not available, using local storage fallback');
-      // Gracefully fallback to mock data for addresses
-      await fetchAddressesMock();
+      console.error('[ProfilePanel] Error fetching user addresses:', error);
+      setRealAddresses([]);
     } finally {
       setAddressesLoading(false);
     }
   };
 
   // Mock address fetching (fallback)
-  const fetchAddressesMock = async () => {
-    try {
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      const savedAddresses = localStorage.getItem('gutzo_mock_addresses');
-      if (savedAddresses) {
-        const parsedAddresses = JSON.parse(savedAddresses);
-        setRealAddresses(parsedAddresses);
-      } else {
-        // No default address - start with empty addresses
-        const sampleAddresses: Address[] = [];
-        setRealAddresses(sampleAddresses);
-        localStorage.setItem('gutzo_mock_addresses', JSON.stringify(sampleAddresses));
-      }
-    } catch (error) {
-      console.error('Error with mock addresses:', error);
-      setRealAddresses([]);
-    }
-  };
+  // Removed: All address fetching is now direct from Supabase/database
 
   // Fetch data when panel opens and content changes
   useEffect(() => {
@@ -282,8 +169,9 @@ export function ProfilePanel({ isOpen, onClose, onLogout, content, userInfo, onV
 
   // Sync addresses with real data
   useEffect(() => {
-    setAddresses(realAddresses);
-    setLoadingAddresses(addressesLoading);
+  console.log('[ProfilePanel] Syncing addresses to local state:', realAddresses);
+  setAddresses(realAddresses);
+  setLoadingAddresses(addressesLoading);
   }, [realAddresses, addressesLoading]);
 
   // Get initials for avatar
@@ -311,42 +199,17 @@ export function ProfilePanel({ isOpen, onClose, onLogout, content, userInfo, onV
 
   const handleSaveName = async () => {
     if (!tempName.trim() || !userData.phone) return;
-    
     setIsUpdating(true);
     try {
-      console.log('📝 Updating user name via Supabase...');
-      
-      const response = await fetch(`${SUPABASE_URL}/user/update-profile`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          phone: userData.phone,
-          name: tempName.trim()
-        })
-      });
-
-      if (response.ok) {
-        const updatedProfile = await response.json();
-        console.log('✅ Name updated successfully:', updatedProfile);
-        
-        // Update local state
-        setRealUserData(prev => ({ ...prev, name: tempName.trim() }));
-        
-        // Update localStorage auth data
-        const authData = localStorage.getItem('gutzo_auth');
-        if (authData) {
-          const auth = JSON.parse(authData);
-          auth.name = tempName.trim();
-          localStorage.setItem('gutzo_auth', JSON.stringify(auth));
-        }
-        setEditingName(false);
-      } else {
-        console.error('❌ Failed to update name');
-        setTempName(displayName); // Revert on error
+      await apiService.createUser({ phone: userData.phone, name: tempName.trim(), verified: true, email: realUserData?.email });
+      setRealUserData((prev: typeof realUserData) => ({ ...prev, name: tempName.trim() }));
+      const authData = localStorage.getItem('gutzo_auth');
+      if (authData) {
+        const auth = JSON.parse(authData);
+        auth.name = tempName.trim();
+        localStorage.setItem('gutzo_auth', JSON.stringify(auth));
       }
+      setEditingName(false);
     } catch (error) {
       console.error('❌ Error updating name:', error);
       setTempName(displayName); // Revert on error
@@ -357,42 +220,17 @@ export function ProfilePanel({ isOpen, onClose, onLogout, content, userInfo, onV
 
   const handleSaveEmail = async () => {
     if (!tempEmail.trim() || !userData.phone) return;
-    
     setIsUpdating(true);
     try {
-      console.log('📧 Updating user email via Supabase...');
-      
-      const response = await fetch(`${SUPABASE_URL}/user/update-profile`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          phone: userData.phone,
-          email: tempEmail.trim()
-        })
-      });
-
-      if (response.ok) {
-        const updatedProfile = await response.json();
-        console.log('✅ Email updated successfully:', updatedProfile);
-        
-        // Update local state
-        setRealUserData(prev => ({ ...prev, email: tempEmail.trim() }));
-        
-        // Update localStorage auth data
-        const authData = localStorage.getItem('gutzo_auth');
-        if (authData) {
-          const auth = JSON.parse(authData);
-          auth.email = tempEmail.trim();
-          localStorage.setItem('gutzo_auth', JSON.stringify(auth));
-        }
-        setEditingEmail(false);
-      } else {
-        console.error('❌ Failed to update email');
-        setTempEmail(displayEmail || ''); // Revert on error
+      await apiService.createUser({ phone: userData.phone, name: realUserData?.name || userData.name, verified: true, email: tempEmail.trim() });
+      setRealUserData((prev: typeof realUserData) => ({ ...prev, email: tempEmail.trim() }));
+      const authData = localStorage.getItem('gutzo_auth');
+      if (authData) {
+        const auth = JSON.parse(authData);
+        auth.email = tempEmail.trim();
+        localStorage.setItem('gutzo_auth', JSON.stringify(auth));
       }
+      setEditingEmail(false);
     } catch (error) {
       console.error('❌ Error updating email:', error);
       setTempEmail(displayEmail || ''); // Revert on error
@@ -411,101 +249,33 @@ export function ProfilePanel({ isOpen, onClose, onLogout, content, userInfo, onV
     setEditingEmail(false);
   };
 
-  const handleSaveAddress = async (newAddress: Omit<Address, 'id'>) => {
-    if (!userData.phone) return;
-    
-    console.log('🏠 Attempting to save address via Supabase:', newAddress);
-    
+  const handleSaveAddress = async () => {
+    // Only refresh addresses and update UI, never create another address
     try {
-      const response = await fetch(`${SUPABASE_URL}/user/addresses/create`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          phone: userData.phone,
-          ...newAddress
-        })
-      });
-
-      if (response.ok) {
-        const savedAddress = await response.json();
-        console.log('✅ Address saved successfully:', savedAddress);
-        
-        // Update local state
-        const updatedAddresses = [savedAddress, ...realAddresses];
-        setRealAddresses(updatedAddresses);
-        
-        // Scroll to the new address
-        setTimeout(() => {
-          if (addressListRef.current) {
-            addressListRef.current.scrollTo({ top: 0, behavior: 'smooth' });
-          }
-        }, 100);
-      } else {
-        console.error('❌ Failed to save address via Supabase, using mock mode');
-        await handleSaveAddressMock(newAddress);
-      }
+      await fetchUserAddresses();
+      setShowAddressModal(false);
     } catch (error) {
-      console.error('❌ Error saving address via Supabase, using mock mode:', error);
-      await handleSaveAddressMock(newAddress);
+      console.error('❌ Error refreshing addresses:', error);
+      // Optionally, show error to user
     }
   };
 
-  const handleSaveAddressMock = async (newAddress: Omit<Address, 'id'>) => {
-    console.log('🏠 Saving address in mock mode:', newAddress);
-    
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    const savedAddress: Address = {
-      ...newAddress,
-      id: `addr_${Date.now()}`,
-      created_at: new Date().toISOString()
-    };
-
-    const updatedAddresses = [savedAddress, ...realAddresses];
-    setRealAddresses(updatedAddresses);
-    localStorage.setItem('gutzo_mock_addresses', JSON.stringify(updatedAddresses));
-    
-    setTimeout(() => {
-      if (addressListRef.current) {
-        addressListRef.current.scrollTo({ top: 0, behavior: 'smooth' });
-      }
-    }, 100);
+  const handleSaveAddressMock = async (newAddress: Omit<UserAddress, 'id'>) => {
+    // Mock logic removed: all address creation must use live backend
+    // This function is now deprecated
   };
 
   const handleDeleteAddress = async (addressId: string) => {
     if (!userData.phone) return;
-    
     setDeletingAddressId(addressId);
     try {
-      console.log('🗑️ Deleting address via Supabase:', addressId);
-      
-      const response = await fetch(`${SUPABASE_URL}/user/addresses/delete`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          phone: userData.phone,
-          addressId: addressId
-        })
-      });
-
-      if (response.ok) {
-        console.log('✅ Address deleted successfully via Supabase');
-        
-        // Remove from local state
-        const updatedAddresses = realAddresses.filter(addr => addr.id !== addressId);
-        setRealAddresses(updatedAddresses);
-      } else {
-        console.error('❌ Failed to delete address via Supabase, using mock mode');
-        await handleDeleteAddressMock(addressId);
-      }
+      console.log('🗑️ Deleting address via API service:', addressId);
+  await apiService.deleteAddress(addressId);
+      // Remove from local state
+      const updatedAddresses = realAddresses.filter(addr => addr.id !== addressId);
+      setRealAddresses(updatedAddresses);
     } catch (error) {
-      console.error('❌ Error deleting address via Supabase, using mock mode:', error);
+      console.error('❌ Error deleting address via API service:', error);
       await handleDeleteAddressMock(addressId);
     } finally {
       setDeletingAddressId(null);
@@ -767,9 +537,8 @@ export function ProfilePanel({ isOpen, onClose, onLogout, content, userInfo, onV
   };
 
   const resetMockData = () => {
-    localStorage.removeItem('gutzo_mock_addresses');
-    setRealAddresses([]);
-    console.log('🔄 Mock address data reset');
+  // Removed: All addresses are managed via backend
+  setRealAddresses([]);
   };
 
   const renderAddressContent = () => {
@@ -850,16 +619,16 @@ export function ProfilePanel({ isOpen, onClose, onLogout, content, userInfo, onV
 
                     {/* Address Details */}
                     <div className="text-sm text-gray-700 space-y-1">
-                      <p className="font-medium">{address.complete_address}</p>
-                      {address.floor && (
-                        <p className="text-gray-600">Floor: {address.floor}</p>
-                      )}
+                      <p className="font-medium">{address.street}{address.area ? `, ${address.area}` : ''}{address.city ? `, ${address.city}` : ''}{address.state ? `, ${address.state}` : ''}{address.country ? `, ${address.country}` : ''}</p>
                       {address.landmark && (
-                        <p className="text-gray-600">Near: {address.landmark}</p>
+                        <p className="text-gray-600">Landmark: {address.landmark}</p>
                       )}
-                      <p className="text-gray-600">{address.area}</p>
-                      {address.phone && (
-                        <p className="text-gray-600">Contact: +91 {address.phone}</p>
+                      <p className="text-gray-600">{address.full_address}</p>
+                      {address.postal_code && (
+                        <p className="text-gray-600">Postal Code: {address.postal_code}</p>
+                      )}
+                      {address.delivery_instructions && (
+                        <p className="text-gray-600">Instructions: {address.delivery_instructions}</p>
                       )}
                     </div>
                   </div>
@@ -992,7 +761,7 @@ export function ProfilePanel({ isOpen, onClose, onLogout, content, userInfo, onV
           <AddressModal 
             isOpen={showAddressModal}
             onClose={() => setShowAddressModal(false)}
-            onSave={handleSaveAddress}
+          onSave={() => handleSaveAddress()}
           />
 
           {/* Footer */}

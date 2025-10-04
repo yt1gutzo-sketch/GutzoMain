@@ -16,6 +16,7 @@ export function AddressListPanel({
   onClose,
   onSelectAddress
 }: AddressListPanelProps) {
+  console.log('Rendering AddressListPanel, isOpen:', isOpen);
   const [addresses, setAddresses] = useState<UserAddress[]>([]);
   const [loading, setLoading] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -24,6 +25,7 @@ export function AddressListPanel({
   // Load user addresses
   useEffect(() => {
     if (isOpen) {
+      console.log('=isOpen:', isOpen);
       loadAddresses();
     }
   }, [isOpen]);
@@ -31,13 +33,34 @@ export function AddressListPanel({
   const loadAddresses = async () => {
     setLoading(true);
     try {
-      const response = await AddressApi.getUserAddresses();
-      
+      // Get userPhone from localStorage (or context if available)
+      let userPhone = '';
+      try {
+        const authData = localStorage.getItem('gutzo_auth');
+        if (authData) {
+          const parsed = JSON.parse(authData);
+          userPhone = parsed.phone || '';
+          console.log('[AddressListPanel] userPhone for address fetch:', userPhone);
+        }
+      } catch (err) {
+        console.error('[AddressListPanel] Error parsing auth data:', err);
+      }
+      if (!userPhone) {
+        console.log('[AddressListPanel] No userPhone, skipping address fetch');
+        setAddresses([]);
+        setLoading(false);
+        return;
+      }
+      const response = await AddressApi.getUserAddresses(userPhone);
+      console.log('[AddressListPanel] Raw API response:', response);
       if (response.success && response.data) {
+        console.log('[AddressListPanel] Setting addresses:', response.data);
         setAddresses(response.data);
+      } else {
+        console.log('[AddressListPanel] No addresses found or API error:', response);
       }
     } catch (error) {
-      console.error('Error loading addresses:', error);
+      console.error('[AddressListPanel] Error loading addresses:', error);
     } finally {
       setLoading(false);
     }
@@ -77,11 +100,11 @@ export function AddressListPanel({
 
   const getTypeIcon = (type: AddressType) => {
     switch (type) {
-      case 'Home':
+      case 'home':
         return <Home className="h-4 w-4" />;
-      case 'Work':
+      case 'work':
         return <Building2 className="h-4 w-4" />;
-      case 'Other':
+      case 'other':
         return <MapPin className="h-4 w-4" />;
       default:
         return <MapPin className="h-4 w-4" />;
@@ -89,16 +112,15 @@ export function AddressListPanel({
   };
 
   const getTypeLabel = (type: AddressType, customTag?: string) => {
-    if (type === 'Other' && customTag) {
+    if (type === 'other' && customTag) {
       return customTag;
     }
-    
     switch (type) {
-      case 'Home':
+      case 'home':
         return 'Home';
-      case 'Work':
+      case 'work':
         return 'Work';
-      case 'Other':
+      case 'other':
         return 'Other';
       default:
         return 'Address';
@@ -108,16 +130,14 @@ export function AddressListPanel({
   // Unified address display - clean and concise for all screen sizes
   const getAddressDisplayText = (address: UserAddress): string => {
     const parts = [
-      address.house_number,
-      address.apartment_road
+      address.street,
+      address.area
     ].filter(Boolean);
-    
-    // If no house number or apartment road, use first part of complete address
+    // If no street or area, use first part of full_address
     if (parts.length === 0) {
-      const firstPart = address.complete_address.split(',')[0]?.trim();
+      const firstPart = address.full_address?.split(',')[0]?.trim();
       return firstPart || 'Address';
     }
-    
     return parts.join(', ');
   };
 
@@ -187,7 +207,7 @@ export function AddressListPanel({
                         <div className="flex-1">
                           <div className="flex items-center space-x-3 mb-2">
                             <span className="font-semibold text-gray-900">
-                              {getTypeLabel(address.type, address.custom_tag)}
+                              {getTypeLabel(address.type, address.label)}
                             </span>
                             {address.is_default && (
                               <div className="flex items-center space-x-1 bg-gutzo-primary text-white px-3 py-1 rounded-full text-xs">

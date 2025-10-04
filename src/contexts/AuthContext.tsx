@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { apiService } from '../utils/api';
 
 // Types
 interface AuthData {
@@ -51,8 +52,8 @@ export const useAuth = () => {
 const AUTH_CONFIG = {
   VALIDATION_INTERVAL: 60 * 60 * 1000, // 1 hour
   TOKEN_EXPIRY: 30 * 24 * 60 * 60 * 1000, // 30 days
-  SUPABASE_URL: 'https://jkafnrpojqzfvertyrwc.supabase.co/functions/v1/make-server-6985f4e9',
-  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImprYWZucnBvanF6ZnZlcnR5cndjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc3OTA4NDQsImV4cCI6MjA3MzM2Njg0NH0.xLhgq-S8K1Ho40OptegwkcAG-4TCWoJXnHGG1PXLP10'
+  SUPABASE_URL: import.meta.env.VITE_SUPABASE_FUNCTION_URL,
+  SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY
 };
 
 // Auth Provider Component
@@ -174,49 +175,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Validate user against database with fallback logic
   const validateUserWithFallback = async (authData: AuthData): Promise<boolean> => {
     try {
-      console.log('🔍 Validating user against database...');
-      
-      // Ensure phone number has +91 prefix for database lookup
-      const formattedPhone = authData.phone.startsWith('+91') ? authData.phone : `+91${authData.phone}`;
-      
-      const response = await fetch(`${AUTH_CONFIG.SUPABASE_URL}/validate-user`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${AUTH_CONFIG.SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ phone: formattedPhone })
-      });
-
-      if (response.ok) {
-        const { userExists, verified } = await response.json();
-        const isValid = userExists && verified;
-        
-        console.log(`✅ User validation result: exists=${userExists}, verified=${verified}, valid=${isValid}`);
-        
-        if (isValid) {
-          // Update lastValidated timestamp
-          const updatedAuth = { ...authData, lastValidated: Date.now() };
-          saveAuthData(updatedAuth);
-        } else {
-          // User explicitly not found or not verified
-          console.log('❌ User validation failed - user not found or not verified');
-          return false;
-        }
-        
-        return isValid;
-      } else if (response.status === 404) {
-        // User explicitly not found
-        console.log('❌ User not found in database');
-        return false;
+      console.log('🔍 Validating user via apiService...');
+      const result = await apiService.validateUser(authData.phone);
+      const isValid = result.userExists && result.verified;
+      console.log(`✅ User validation result: exists=${result.userExists}, verified=${result.verified}, valid=${isValid}`);
+      if (isValid) {
+        const updatedAuth = { ...authData, lastValidated: Date.now() };
+        saveAuthData(updatedAuth);
       } else {
-        // Server error - keep user logged in
-        console.log('⚠️ Server error during validation, keeping user logged in');
+        console.log('❌ User validation failed - user not found or not verified');
+        return false;
+      }
+      return isValid;
+    } catch (error: any) {
+      if (error.message && (error.message.includes('Network') || error.message.includes('server'))) {
+        console.log('⚠️ Network/server error during validation, keeping user logged in:', error.message);
         return true;
       }
-    } catch (error: any) {
-      // Network error - keep user logged in
-      console.log('⚠️ Network error during validation, keeping user logged in:', error.message);
       return true;
     }
   };
@@ -224,43 +199,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Fetch detailed user data
   const fetchUserData = async (phone: string): Promise<UserData | null> => {
     try {
-      console.log('📱 Fetching detailed user data for phone:', phone);
-      
-      // Ensure phone number has +91 prefix for database lookup
-      const formattedPhone = phone.startsWith('+91') ? phone : `+91${phone}`;
-      
-      const response = await fetch(`${AUTH_CONFIG.SUPABASE_URL}/get-user`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${AUTH_CONFIG.SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ phone: formattedPhone })
-      });
-
-      if (response.ok) {
-        const responseText = await response.text();
-        try {
-          const userData = JSON.parse(responseText);
-          if (userData.userExists && userData.name) {
-            console.log('✅ User data fetched successfully');
-            return {
-              id: userData.id,
-              name: userData.name,
-              phone: userData.phone,
-              email: userData.email || '',
-              verified: userData.verified,
-              created_at: userData.created_at
-            };
-          }
-        } catch (parseError) {
-          console.error('❌ Failed to parse user data:', parseError);
-        }
+      console.log('📱 Fetching detailed user data via apiService for phone:', phone);
+      const userData = await apiService.getUser(phone);
+      if (userData.userExists && userData.name) {
+        console.log('✅ User data fetched successfully');
+        return {
+          id: userData.id,
+          name: userData.name,
+          phone: userData.phone,
+          email: userData.email || '',
+          verified: userData.verified,
+          created_at: userData.created_at
+        };
       }
     } catch (error) {
       console.error('❌ Error fetching user data:', error);
     }
-    
     return null;
   };
 
@@ -358,32 +312,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Create user in database if they don't exist
   const createUserInDatabase = async (authData: AuthData): Promise<void> => {
     try {
-      console.log('👤 Creating user in database...');
-      
-      // Ensure phone number has +91 prefix for database storage
-      const formattedPhone = authData.phone.startsWith('+91') ? authData.phone : `+91${authData.phone}`;
-      
-      const response = await fetch(`${AUTH_CONFIG.SUPABASE_URL}/create-user`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${AUTH_CONFIG.SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          phone: formattedPhone,
-          name: authData.name || 'User',
-          verified: authData.verified,
-          email: authData.email || null
-        })
+      console.log('👤 Creating user in database via apiService...');
+      await apiService.createUser({
+        phone: authData.phone,
+        name: authData.name || 'User',
+        verified: authData.verified,
+        email: (authData as any).email || null
       });
-
-      if (response.ok) {
-        const result = await response.json();
-        console.log('✅ User created/updated in database:', result);
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('❌ Failed to create user in database:', errorData);
-      }
+      console.log('✅ User created/updated in database');
     } catch (error) {
       console.error('❌ Error creating user in database:', error);
     }

@@ -60,19 +60,11 @@ export function useAddresses() {
 
     try {
       const response = await AddressApi.getAvailableAddressTypes(user.phone);
-      
-      if (response.success) {
-        setAvailableTypes(response.data || []);
-      } else {
-        // If user not found, provide default types (they're new)
-        if (response.error?.includes('User not found')) {
-          console.log('ℹ️ New user detected, providing default address types');
-        } else {
-          console.error('Error fetching available types:', response.error);
-        }
-        // Fallback to all types
-        setAvailableTypes(['home', 'work', 'other']);
+      let types = response.data;
+      if (!Array.isArray(types)) {
+        types = ['home', 'work', 'other'];
       }
+      setAvailableTypes(types);
     } catch (err) {
       console.error('Error fetching available types:', err);
       setAvailableTypes(['home', 'work', 'other']);

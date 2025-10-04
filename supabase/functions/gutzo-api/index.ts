@@ -1,3 +1,4 @@
+
 import { Hono } from 'npm:hono';
 import { cors } from 'npm:hono/cors';
 import { logger } from 'npm:hono/logger';
@@ -1144,15 +1145,20 @@ app.post('/gutzo-api/get-user', async (c)=>{
 });
 app.post('/gutzo-api/get-user-cart', async (c)=>{
   try {
-    const { userPhone } = await c.req.json();
+    const body = await c.req.json();
+    console.log('get-user-cart: Incoming request body:', body);
+    const { userPhone } = body;
     if (!userPhone) {
+      console.error('get-user-cart: Missing userPhone in request body:', body);
       return c.json({
-        error: 'User phone is required'
+        error: 'User phone is required',
+        receivedBody: body
       }, 400);
     }
     console.log('📥 Fetching user cart for:', userPhone);
     // Fetch cart items (lean structure)
     const { data: cartData, error: cartError } = await supabase.from('cart').select('product_id, vendor_id, quantity, created_at').eq('user_phone', userPhone);
+    console.log('get-user-cart: Cart query result:', { cartData, cartError });
     if (cartError) {
       console.error('❌ Database error fetching cart:', cartError);
       return c.json({
@@ -1171,6 +1177,7 @@ app.post('/gutzo-api/get-user-cart', async (c)=>{
     console.log(`✅ Found ${cartData.length} cart items, fetching fresh product data...`);
     // Get unique product IDs to fetch fresh product details
     const productIds = cartData.map((item)=>item.product_id);
+    console.log('get-user-cart: Product IDs to fetch:', productIds);
     // Fetch fresh product details with vendor info
     const { data: productsData, error: productsError } = await supabase.from('products').select(`
         id,
@@ -1187,6 +1194,7 @@ app.post('/gutzo-api/get-user-cart', async (c)=>{
           image
         )
       `).in('id', productIds);
+    console.log('get-user-cart: Products query result:', { productsData, productsError });
     if (productsError) {
       console.error('❌ Error fetching fresh product details:', productsError);
       return c.json({
@@ -1384,38 +1392,29 @@ app.post('/gutzo-api/clear-user-cart', async (c)=>{
 });
 /*********************************************************/ /*********************************************************/ // Get user ID from phone (helper function)
 async function getUserIdFromPhone(phone) {
-  // Use the admin API to look up the user by phone number in auth.users
-  // This is necessary because the user_addresses table has a foreign key to auth.users(id)
-  const { data: { users }, error } = await supabase.auth.admin.listUsers({
-    phone
-  });
+  // Look up user by phone in custom users table
+  const { data: user, error } = await supabase.from('users').select('id').eq('phone', phone).single();
   if (error) {
     console.error(`Error looking up user by phone ${phone}:`, error.message);
     return null;
   }
-  if (!users || users.length === 0) {
-    console.warn(`No user found in auth.users for phone: ${phone}`);
+  if (!user) {
+    console.warn(`No user found in users table for phone: ${phone}`);
     return null;
   }
-  return users[0].id;
+  return user.id;
 }
 // Get user addresses
 app.get('/gutzo-api/user-addresses/:phone', async (c)=>{
   try {
     const phone = c.req.param('phone');
     console.log('📍 Fetching addresses for phone:', phone);
-    // First get user ID from phone
+    // Get user ID from phone using custom users table
     const userId = await getUserIdFromPhone(phone);
     if (!userId) {
-      return c.json({
-        error: 'User not found'
-      }, 404);
+      return c.json({ error: 'User not found' }, 404);
     }
-    const { data, error } = await supabase.from('user_addresses').select('*').eq('user_id', userId).order('is_default', {
-      ascending: false
-    }).order('created_at', {
-      ascending: false
-    });
+    const { data, error } = await supabase.from('user_addresses').select('*').eq('user_id', userId).order('is_default', { ascending: false }).order('created_at', { ascending: false });
     if (error) {
       console.error('❌ Error fetching addresses:', error);
       return c.json({
@@ -1433,18 +1432,60 @@ app.get('/gutzo-api/user-addresses/:phone', async (c)=>{
     }, 500);
   }
 });
+// Get available address types for user
+app.get('/gutzo-api/user-addresses/:phone/available-types', async (c) => {
+  try {
+    const phone = c.req.param('phone');
+    const userId = await getUserIdFromPhone(phone);
+    if (!userId) return c.json({ error: 'User not found' }, 404);
+    const { data, error } = await supabase.from('user_addresses').select('type').eq('user_id', userId);
+    if (error) return c.json({ error: 'Failed to check address types', details: error.message }, 500);
+    const usedTypes = data?.map((addr) => addr.type) || [];
+    const allTypes = ['home', 'work', 'other'];
+    const availableTypes = allTypes.filter((type) => {
+      if (type === 'other') return true;
+      return !usedTypes.includes(type);
+    });
+    return c.json({ availableTypes, usedTypes });
+  } catch (error) {
+    return c.json({ error: 'Failed to check available address types', details: error.message }, 500);
+  }
+});
+// Alias without prefix to support invocation at /functions/v1/gutzo-api/user-addresses -> internal /user-addresses
+app.get('/gutzo-api/user-addresses/:phone', async (c)=>{
+  try {
+    const phone = c.req.param('phone');
+    console.log('📍 [ALIAS] Fetching addresses for phone:', phone);
+    const userId = await getUserIdFromPhone(phone);
+    if (!userId) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+    const { data, error } = await supabase
+      .from('user_addresses')
+      .select('*')
+      .eq('user_id', userId)
+      .order('is_default', { ascending: false })
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.error('❌ Error fetching addresses (alias):', error);
+      return c.json({ error: 'Failed to fetch addresses', details: error.message }, 500);
+    }
+    return c.json(data || []);
+  } catch (error) {
+    console.error('❌ Failed to fetch addresses (alias):', error);
+    return c.json({ error: 'Failed to fetch addresses', details: error.message }, 500);
+  }
+});
 // Create new address
 app.post('/gutzo-api/user-addresses', async (c)=>{
   try {
     const body = await c.req.json();
     const { userPhone, type, label, street, area, landmark, fullAddress, latitude, longitude, isDefault } = body;
     console.log('📍 Creating new address for phone:', userPhone);
-    // Get user ID from phone
+    // Get user ID from phone using custom users table
     const userId = await getUserIdFromPhone(userPhone);
     if (!userId) {
-      return c.json({
-        error: 'User not found'
-      }, 404);
+      return c.json({ error: 'User not found' }, 404);
     }
     // Validate required fields
     if (!type || !street || !fullAddress) {
@@ -1492,6 +1533,39 @@ app.post('/gutzo-api/user-addresses', async (c)=>{
       error: 'Failed to create address',
       details: error.message
     }, 500);
+  }
+});
+// Alias without prefix
+app.post('/gutzo-api/user-addresses', async (c)=>{
+  try {
+    const body = await c.req.json();
+    const { userPhone, type, label, street, area, landmark, fullAddress, latitude, longitude, isDefault } = body;
+    console.log('📍 [ALIAS] Creating new address for phone:', userPhone);
+    const userId = await getUserIdFromPhone(userPhone);
+    if (!userId) return c.json({ error: 'User not found' }, 404);
+    if (!type || !street || !fullAddress) return c.json({ error: 'Required fields missing: type, street, fullAddress' }, 400);
+    if (type === 'other' && !label) return c.json({ error: "Custom label is required for 'other' address type" }, 400);
+    if (isDefault) {
+      await supabase.from('user_addresses').update({ is_default: false }).eq('user_id', userId);
+    }
+    const addressData = {
+      user_id: userId,
+      type,
+      label: type === 'other' ? label : null,
+      street,
+      area: area || null,
+      landmark: landmark || null,
+      full_address: fullAddress,
+      latitude: latitude || null,
+      longitude: longitude || null,
+      is_default: isDefault || false,
+    };
+    const { data, error } = await supabase.from('user_addresses').insert(addressData).select().single();
+    if (error) return c.json({ error: 'Failed to create address', details: error.message }, 500);
+    return c.json(data, 201);
+  } catch (error) {
+    console.error('❌ Failed to create address (alias):', error);
+    return c.json({ error: 'Failed to create address', details: error.message }, 500);
   }
 });
 // Update address
@@ -1545,23 +1619,74 @@ app.put('/gutzo-api/user-addresses/:id', async (c)=>{
     }, 500);
   }
 });
+// Alias without prefix
+app.put('/gutzo-api/user-addresses/:id', async (c)=>{
+  try {
+    const addressId = c.req.param('id');
+    const body = await c.req.json();
+    const { type, label, street, area, landmark, fullAddress, latitude, longitude, isDefault, userPhone } = body;
+    console.log('📍 [ALIAS] Updating address:', addressId);
+    if (type === 'other' && !label) return c.json({ error: "Custom label is required for 'other' address type" }, 400);
+    if (isDefault && userPhone) {
+      const userId = await getUserIdFromPhone(userPhone);
+      if (userId) {
+        await supabase.from('user_addresses').update({ is_default: false }).eq('user_id', userId);
+      }
+    }
+    const updateData = {
+      type,
+      label: type === 'other' ? label : null,
+      street,
+      area: area || null,
+      landmark: landmark || null,
+      full_address: fullAddress,
+      latitude: latitude || null,
+      longitude: longitude || null,
+      is_default: isDefault || false,
+    };
+    const { data, error } = await supabase.from('user_addresses').update(updateData).eq('id', addressId).select().single();
+    if (error) return c.json({ error: 'Failed to update address', details: error.message }, 500);
+    return c.json(data);
+  } catch (error) {
+    console.error('❌ Failed to update address (alias):', error);
+    return c.json({ error: 'Failed to update address', details: error.message }, 500);
+  }
+});
 // Delete address
 app.delete('/gutzo-api/user-addresses/:id', async (c)=>{
   try {
     const addressId = c.req.param('id');
-    console.log('📍 Deleting address:', addressId);
-    const { error } = await supabase.from('user_addresses').delete().eq('id', addressId);
-    if (error) {
-      console.error('❌ Error deleting address:', error);
+    console.log('📍 [DELETE] Attempting to delete address:', addressId);
+    // Check if address exists before deleting
+    const { data: existing, error: fetchError } = await supabase.from('user_addresses').select('id').eq('id', addressId).single();
+    if (fetchError) {
+      console.error('❌ Error fetching address before delete:', fetchError);
+      return c.json({
+        error: 'Address not found or fetch error',
+        details: fetchError.message
+      }, 404);
+    }
+    if (!existing) {
+      console.warn('⚠️ Address not found for deletion:', addressId);
+      return c.json({
+        error: 'Address not found',
+        id: addressId
+      }, 404);
+    }
+    const { error: deleteError } = await supabase.from('user_addresses').delete().eq('id', addressId);
+    if (deleteError) {
+      console.error('❌ Error deleting address:', deleteError);
       return c.json({
         error: 'Failed to delete address',
-        details: error.message
+        details: deleteError.message,
+        id: addressId
       }, 500);
     }
     console.log('✅ Successfully deleted address:', addressId);
     return c.json({
       success: true,
-      message: 'Address deleted successfully'
+      message: 'Address deleted successfully',
+      id: addressId
     });
   } catch (error) {
     console.error('❌ Failed to delete address:', error);
@@ -1571,89 +1696,5 @@ app.delete('/gutzo-api/user-addresses/:id', async (c)=>{
     }, 500);
   }
 });
-// Set default address
-app.post('/gutzo-api/user-addresses/:id/set-default', async (c)=>{
-  try {
-    const addressId = c.req.param('id');
-    const { userPhone } = await c.req.json();
-    console.log('📍 Setting default address:', addressId, 'for phone:', userPhone);
-    if (!userPhone) {
-      return c.json({
-        error: 'User phone is required'
-      }, 400);
-    }
-    const userId = await getUserIdFromPhone(userPhone);
-    if (!userId) {
-      return c.json({
-        error: 'User not found'
-      }, 404);
-    }
-    // Unset all other defaults for this user
-    await supabase.from('user_addresses').update({
-      is_default: false
-    }).eq('user_id', userId);
-    // Set this address as default
-    const { data, error } = await supabase.from('user_addresses').update({
-      is_default: true
-    }).eq('id', addressId).eq('user_id', userId).select().single();
-    if (error) {
-      console.error('❌ Error setting default address:', error);
-      return c.json({
-        error: 'Failed to set default address',
-        details: error.message
-      }, 500);
-    }
-    console.log('✅ Successfully set default address:', addressId);
-    return c.json(data);
-  } catch (error) {
-    console.error('❌ Failed to set default address:', error);
-    return c.json({
-      error: 'Failed to set default address',
-      details: error.message
-    }, 500);
-  }
-});
-// Get available address types for user
-app.get('/gutzo-api/user-addresses/:phone/available-types', async (c)=>{
-  try {
-    const phone = c.req.param('phone');
-    console.log('📍 Checking available address types for phone:', phone);
-    const userId = await getUserIdFromPhone(phone);
-    if (!userId) {
-      return c.json({
-        error: 'User not found'
-      }, 404);
-    }
-    const { data, error } = await supabase.from('user_addresses').select('type').eq('user_id', userId);
-    if (error) {
-      console.error('❌ Error checking address types:', error);
-      return c.json({
-        error: 'Failed to check address types',
-        details: error.message
-      }, 500);
-    }
-    const usedTypes = data?.map((addr)=>addr.type) || [];
-    const allTypes = [
-      'home',
-      'work',
-      'other'
-    ];
-    // Allow multiple "other" addresses but limit home/work to 1 each
-    const availableTypes = allTypes.filter((type)=>{
-      if (type === 'other') return true; // Always allow "other" 
-      return !usedTypes.includes(type); // Limit home/work to 1 each
-    });
-    console.log('✅ Available address types:', availableTypes);
-    return c.json({
-      availableTypes,
-      usedTypes
-    });
-  } catch (error) {
-    console.error('❌ Failed to check available address types:', error);
-    return c.json({
-      error: 'Failed to check available address types',
-      details: error.message
-    }, 500);
-  }
-});
-/*********************************************************/ Deno.serve(app.fetch);
+/*********************************************************/ 
+Deno.serve(app.fetch);

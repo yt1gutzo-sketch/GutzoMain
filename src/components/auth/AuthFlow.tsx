@@ -3,7 +3,9 @@ import { PhoneSignIn } from "./PhoneSignIn";
 import { OTPVerification } from "./OTPVerification";
 import { AuthSuccess } from "./AuthSuccess";
 import { toast } from "sonner@2.0.3";
-import { projectId, publicAnonKey } from "../../utils/supabase/info";
+
+const VITE_SUPABASE_FUNCTION_URL = import.meta.env.VITE_SUPABASE_FUNCTION_URL;
+const VITE_SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 type AuthStep = 'phone' | 'otp' | 'success';
 
@@ -24,13 +26,13 @@ export function AuthFlow({ onAuthComplete, onClose }: AuthFlowProps) {
       // Format phone number to international format
       const formattedPhone = `+91${phone}`;
       
-      // Call the send_otp endpoint from make-server
+      // Call the send_otp endpoint from gutzo-api
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-52a32140/send-otp`,
+        `${VITE_SUPABASE_FUNCTION_URL}/gutzo-api/send-otp`,
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
+            'Authorization': `Bearer ${VITE_SUPABASE_ANON_KEY}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -89,13 +91,13 @@ export function AuthFlow({ onAuthComplete, onClose }: AuthFlowProps) {
       // Format phone number to international format
       const formattedPhone = `+91${phoneNumber}`;
       
-      // Call the send_otp endpoint from make-server again
+      // Call the send_otp endpoint from gutzo-api again
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-52a32140/send-otp`,
+        `${VITE_SUPABASE_FUNCTION_URL}/gutzo-api/send-otp`,
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
+            'Authorization': `Bearer ${VITE_SUPABASE_ANON_KEY}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({

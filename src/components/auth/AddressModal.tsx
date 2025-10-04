@@ -49,7 +49,7 @@ interface Address {
 interface AddressModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (address: Address) => Promise<void>;
+  onSave?: () => Promise<void>;
 }
 
 // Helper functions moved outside component scope
@@ -127,20 +127,25 @@ const AddressForm = ({
   modalContentRef,
   onLocationSelect,
 }: AddressFormProps) => {
-  const { location } = useLocation(); // Get device location in form component too
+  // Defensive fallback: ensure availableTypes is always an array
+  const safeAvailableTypes = Array.isArray(availableTypes) ? availableTypes : ['home', 'work', 'other'];
+  const { location, locationDisplay } = useLocation(); // Get device location in form component too
 
   // Auto-scroll when "other" type is selected
+  // Improved auto-scroll: trigger after custom label field is rendered
   useEffect(() => {
-    if (addressData.type === 'other' && modalContentRef?.current) {
+    if (addressData.type === 'other' && modalContentRef?.current && customTagRef?.current) {
       const timer = setTimeout(() => {
-        modalContentRef.current?.scrollTo({
+        modalContentRef.current.scrollTo({
           top: modalContentRef.current.scrollHeight,
           behavior: "smooth",
         });
+        // Optionally focus the custom label input
+        customTagRef.current.focus();
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [addressData.type, modalContentRef]);
+  }, [addressData.type, modalContentRef, customTagRef, addressData.label]);
 
   return (
     <div className="flex flex-col h-full">
@@ -177,7 +182,10 @@ const AddressForm = ({
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 mobile-product-scroll scrollbar-hide max-h-[60vh] min-h-0">
+      <div
+        className="flex-1 overflow-y-auto p-4 sm:p-6 mobile-product-scroll scrollbar-hide max-h-[60vh] min-h-0"
+        ref={modalContentRef}
+      >
         {/* Google Maps Location Picker */}
         <GoogleMapPicker
           onLocationSelect={(locationData) =>
@@ -197,7 +205,7 @@ const AddressForm = ({
                 ? {
                     lat: location.coordinates.latitude,
                     lng: location.coordinates.longitude,
-                    address: location.area || "",
+                    address: locationDisplay || "",
                   }
                 : { lat: 40.2038, lng: -8.41, address: "" } // Fallback to Coimbra
           }
@@ -288,7 +296,7 @@ const AddressForm = ({
             
             <div className="flex space-x-3">
               {(['home', 'work', 'other'] as AddressType[]).map((type) => {
-                const isAvailable = availableTypes.includes(type);
+                const isAvailable = safeAvailableTypes.includes(type);
                 const isSelected = addressData.type === type;
                 
                 const typeConfig = {
@@ -356,19 +364,15 @@ const AddressForm = ({
               <Input
                 ref={customTagRef}
                 value={addressData.label || ""}
-                onChange={(e) => {
+                onChange={e => {
                   setAddressData(prev => ({
                     ...prev,
                     label: e.target.value
                   }));
-                  
-                  // Update legacy state for backward compatibility
                   setNewAddress(prev => ({
                     ...prev,
                     custom_tag: e.target.value,
                   }));
-                  
-                  // Clear error when user starts typing
                   if (validationErrors.label) {
                     setValidationErrors(prev => ({
                       ...prev,
@@ -377,22 +381,12 @@ const AddressForm = ({
                   }
                 }}
                 placeholder="Enter custom address label"
-                className={`border-2 focus:ring-0 rounded-xl ${
-                  validationErrors.label
-                    ? "border-red-300 focus:border-red-500"
-                    : "border-gray-200 focus:border-gutzo-primary"
-                }`}
+                className={`border-2 focus:ring-0 rounded-xl ${validationErrors.label ? "border-red-300 focus:border-red-500" : "border-gray-200 focus:border-gutzo-primary"}`}
                 disabled={savingAddress || loadingTypes}
               />
               {validationErrors.label && (
-                <div className="flex items-center mt-2 text-red-600 text-sm">
-                  <AlertCircle className="h-4 w-4 mr-1" />
-                  {validationErrors.label}
-                </div>
+                <span className="text-xs text-red-500">{validationErrors.label}</span>
               )}
-              <p className="text-xs text-gray-500 mt-1">
-                Enter a unique name for this address location
-              </p>
             </div>
           )}
         </div>
@@ -413,7 +407,7 @@ const AddressForm = ({
           onClick={onSave}
           disabled={
             !addressData.street.trim() ||
-            !addressData.formatted_address.trim() ||
+            !addressData.fullAddress?.trim() ||
             (addressData.type === 'other' && !addressData.label?.trim()) ||
             savingAddress ||
             loadingTypes
@@ -460,14 +454,12 @@ export function AddressModal({
     floor: "",
     landmark: "",
     area: "",
-    city: "",
+    city: "", // Include city in reset
     type: "Home",
     phone: "",
     house_number: "",
     apartment_road: "",
   });
-
-  // Enhanced state management with new address system
   const [addressData, setAddressData] = useState<AddressFormData>({
     type: 'home',
     street: '',
@@ -476,17 +468,13 @@ export function AddressModal({
     fullAddress: '',
     isDefault: false
   });
+  const [validationErrors, setValidationErrors] = useState<{ [key: string]: string }>({});
+  const [savingAddress, setSavingAddress] = useState<boolean>(false);
+  const [loadingTypes, setLoadingTypes] = useState<boolean>(false);
   
-  const [savingAddress, setSavingAddress] = useState(false);
-  const [loadingTypes, setLoadingTypes] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
-  
-  // Legacy state removed - using only addressData now
-  
-  const completeAddressRef = useRef<HTMLTextAreaElement>(null);
+  const modalContentRef = useRef<HTMLDivElement>(null);
   const areaRef = useRef<HTMLInputElement>(null);
   const customTagRef = useRef<HTMLInputElement>(null);
-  const modalContentRef = useRef<HTMLDivElement>(null);
 
   // Enhanced location selection handler
   const handleLocationSelect = useCallback(
@@ -505,7 +493,7 @@ export function AddressModal({
         ...prev,
         latitude: location.lat,
         longitude: location.lng,
-        formatted_address: address,
+        fullAddress: address,
       }));
 
       // Update legacy state for backward compatibility
@@ -714,24 +702,8 @@ export function AddressModal({
       
       if (result.success) {
         console.log('✅ Address saved successfully');
-        
-        // Call legacy onSave for backward compatibility
-        const legacyAddress: Address = {
-          complete_address: addressPayload.fullAddress,
-          area: addressPayload.area || '',
-          city: 'Coimbra', 
-          type: addressPayload.type === 'home' ? 'Home' : 
-                addressPayload.type === 'work' ? 'Work' : 'Other',
-          custom_tag: addressPayload.label,
-          is_default: addressPayload.isDefault,
-          latitude: addressPayload.latitude,
-          longitude: addressPayload.longitude,
-          house_number: addressPayload.street,
-          apartment_road: addressPayload.area,
-        };
-
-        await onSave(legacyAddress);
-        
+        // Only trigger onSave to update UI (fetch latest addresses), not to create another address
+        if (onSave) await onSave();
         // Reset and close
         handleClose();
       } else {
@@ -775,9 +747,9 @@ export function AddressModal({
             onClose={handleClose}
             validationErrors={validationErrors}
             setValidationErrors={setValidationErrors}
-            areaRef={areaRef}
-            customTagRef={customTagRef}
-            modalContentRef={modalContentRef}
+            areaRef={areaRef as React.RefObject<HTMLInputElement>}
+            customTagRef={customTagRef as React.RefObject<HTMLInputElement>}
+            modalContentRef={modalContentRef as React.RefObject<HTMLDivElement>}
             onLocationSelect={handleLocationSelect}
           />
         </div>
