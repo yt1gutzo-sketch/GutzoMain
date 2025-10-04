@@ -37,6 +37,7 @@ interface InstantOrderPanelProps {
   onConfirmOrder?: (orderData: InstantOrderData) => void;
   onProceedToPayment?: (orderData: InstantOrderData) => void;
   onPaymentSuccess?: (paymentData: any) => void;
+  onAddAddress?: () => void;
 }
 
 export interface InstantOrderData {
@@ -55,7 +56,8 @@ export function InstantOrderPanel({
   vendor,
   onConfirmOrder,
   onProceedToPayment,
-  onPaymentSuccess
+  onPaymentSuccess,
+  onAddAddress
 }: InstantOrderPanelProps) {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [specialInstructions, setSpecialInstructions] = useState('');
@@ -114,6 +116,36 @@ export function InstantOrderPanel({
     }
   }, [initialCartItems, product, vendor, isOpen]);
 
+
+  // Address selection logic
+  const [addresses, setAddresses] = useState<any[]>([]);
+  const [selectedAddress, setSelectedAddress] = useState<any>(null);
+  const [showAddressPanel, setShowAddressPanel] = useState(false);
+  const [userPhone, setUserPhone] = useState('');
+
+  useEffect(() => {
+    let phone = '';
+    try {
+      const authData = localStorage.getItem('gutzo_auth');
+      if (authData) {
+        const parsed = JSON.parse(authData);
+        phone = parsed.phone || '';
+      }
+    } catch {}
+    const formatted = phone && phone.startsWith('+91') ? phone : (phone ? `+91${phone}` : '');
+    setUserPhone(formatted);
+    if (formatted) {
+      import('../utils/addressApi').then(({ AddressApi }) => {
+        AddressApi.getUserAddresses(formatted).then(res => {
+          if (res.success && res.data) {
+            setAddresses(res.data);
+            setSelectedAddress(res.data.find(a => a.is_default) || res.data[0]);
+          }
+        });
+      });
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const displayVendor = currentVendor || vendor;
@@ -137,18 +169,13 @@ export function InstantOrderPanel({
   };
 
   const handleConfirm = async () => {
-    // Validate payment method selection for wallet
     if (selectedPaymentMethod === 'wallet' && !selectedWallet) {
       toast.error('Please select a wallet to continue');
       return;
     }
-
     setIsProcessing(true);
-
     try {
-      // Simulate payment processing
       await new Promise(resolve => setTimeout(resolve, 2000));
-
       const orderData: InstantOrderData = {
         cartItems,
         totalPrice,
@@ -156,8 +183,6 @@ export function InstantOrderPanel({
         specialInstructions: specialInstructions.trim() || undefined,
         vendor: displayVendor
       };
-
-      // Determine payment method display name
       let paymentMethodName = selectedPaymentMethod;
       if (selectedPaymentMethod === 'wallet' && selectedWallet) {
         const walletName = digitalWallets.find(w => w.id === selectedWallet)?.name;
@@ -167,14 +192,12 @@ export function InstantOrderPanel({
       } else if (selectedPaymentMethod === 'card') {
         paymentMethodName = 'Credit/Debit Card';
       }
-
-      // Create payment success data
       const paymentSuccessData = {
         paymentDetails: {
           paymentId: `PAY_${Date.now()}`,
           subscriptionId: `ORD_${Date.now()}`,
           method: paymentMethodName,
-          amount: totalPrice + 5, // Including packaging fee
+          amount: totalPrice + 5,
           date: new Date().toLocaleDateString('en-IN')
         },
         orderSummary: {
@@ -182,34 +205,23 @@ export function InstantOrderPanel({
           vendor: displayVendor?.name || 'Unknown Vendor',
           orderType: 'Instant Delivery',
           quantity: cartItems.reduce((sum, item) => sum + item.quantity, 0) + ' items',
-          estimatedDelivery: estimatedDelivery.toLocaleTimeString('en-IN', { 
-            hour: '2-digit', 
-            minute: '2-digit',
-            hour12: true 
-          })
+          estimatedDelivery: estimatedDelivery.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
         }
       };
-
-      // Close this panel and show success
       onClose();
-      
-      // Trigger payment success
       if (onPaymentSuccess) {
         onPaymentSuccess(paymentSuccessData);
       }
-
     } catch (error) {
       console.error('Payment failed:', error);
-      // Handle payment failure
-      // TODO: Show error message to user
     } finally {
       setIsProcessing(false);
     }
   };
 
   const getDietTags = (item: CartItem): string[] => {
-    // For cart items, tags might be in different location
-    return item.product?.tags || [];
+    // product.tags does not exist on CartItem.product, so return empty array
+    return [];
   };
 
   return (
@@ -255,22 +267,65 @@ export function InstantOrderPanel({
                 </div>
                 <div className="flex-1">
                   <h4 className="font-medium text-gray-900 mb-2">Delivery Address</h4>
-                  <div className="text-sm text-gray-700">
-                    <p className="font-medium">Home</p>
-                    <p>123 Main Street, Sector 4</p>
-                    <p>Coimbatore, Tamil Nadu 641001</p>
-                    <p className="text-xs text-gray-600 mt-1">+91 98765 43210</p>
-                  </div>
+                  {selectedAddress ? (
+                    <div className="text-sm text-gray-700">
+                      <p className="font-medium">{selectedAddress.type === 'home' ? 'Home' : selectedAddress.type}</p>
+                      <p>{selectedAddress.street}{selectedAddress.area ? `, ${selectedAddress.area}` : ""}</p>
+                      <p>{selectedAddress.full_address}</p>
+                      <p className="text-xs text-gray-600 mt-1">{selectedAddress.landmark ? selectedAddress.landmark : userPhone}</p>
+                    </div>
+                  ) : (
+                    <p className="text-gray-500">No address selected.</p>
+                  )}
                 </div>
                 <Button
                   variant="outline"
                   size="sm"
                   className="text-gutzo-primary border-gutzo-primary hover:bg-gutzo-primary/5 text-xs"
+                  onClick={() => setShowAddressPanel(true)}
                 >
                   Change
                 </Button>
               </div>
             </div>
+            {showAddressPanel && (
+              <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/30">
+                <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md">
+                  <h4 className="font-medium text-gray-900 mb-4">Select Delivery Address</h4>
+                  <div className="space-y-3">
+                    {addresses.length > 0 ? (
+                      addresses.map((address) => (
+                        <div key={address.id} className={`border rounded-lg p-3 cursor-pointer transition-all ${selectedAddress?.id === address.id ? 'border-gutzo-primary bg-gutzo-primary/5' : 'border-gray-200 hover:border-gray-300'}`} onClick={() => { setSelectedAddress(address); setShowAddressPanel(false); }}>
+                          <div className="flex items-center gap-3">
+                            <MapPin className="h-4 w-4 text-gutzo-primary" />
+                            <div className="flex-1">
+                              <p className="font-medium">{address.type === 'home' ? 'Home' : address.type}</p>
+                              <p className="text-sm">{address.street}{address.area ? `, ${address.area}` : ""}</p>
+                              <p className="text-xs text-gray-600">{address.full_address}</p>
+                            </div>
+                            {selectedAddress?.id === address.id && <span className="text-xs text-gutzo-primary font-semibold">Selected</span>}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-8">
+                        <p className="text-gray-500 mb-4">No addresses found. Please add a delivery address.</p>
+                        <Button
+                          className="w-full bg-gutzo-primary text-white font-medium rounded-lg"
+                          onClick={() => {
+                            setShowAddressPanel(false);
+                            if (onAddAddress) onAddAddress();
+                          }}
+                        >
+                          Add Address
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  <Button className="mt-4 w-full" onClick={() => setShowAddressPanel(false)}>Close</Button>
+                </div>
+              </div>
+            )}
 
             {/* Cart Items */}
             <div>

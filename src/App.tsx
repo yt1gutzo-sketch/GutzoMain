@@ -159,9 +159,18 @@ function AppContent() {
     }
   };
 
+  // Track if we came from checkout for address add
+  const [returnToCheckout, setReturnToCheckout] = useState(false);
+
   const handleCloseProfile = () => {
     setShowProfilePanel(false);
-    setProfileOrderData(null); // Clear order data when closing profile
+    setProfileOrderData(null);
+    if (returnToCheckout) {
+      setTimeout(() => {
+        setShowCheckoutPanel(true);
+        setReturnToCheckout(false);
+      }, 250);
+    }
   };
 
   const handleShowCart = () => {
@@ -488,6 +497,14 @@ function AppContent() {
         onClose={handleCloseCheckout}
         cartItems={items}
         onPaymentSuccess={handlePaymentSuccess}
+        onAddAddress={() => {
+          setShowCheckoutPanel(false);
+          setReturnToCheckout(true);
+          setTimeout(() => {
+            setProfilePanelContent('address');
+            setShowProfilePanel(true);
+          }, 250);
+        }}
       />
 
       {/* Payment Panel */}

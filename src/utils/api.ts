@@ -1,40 +1,55 @@
 import { supabase } from './supabase/client';
 
 class ApiService {
+  private formatPhone(phone: string) {
+    if (!phone) return '';
+    return phone.startsWith('+91') ? phone : `+91${phone}`;
+  }
   // Fetch all addresses for a user
   async getUserAddresses(phone: string) {
-    return this.request(`/user-addresses/${encodeURIComponent(phone)}`, {
+    const formattedPhone = this.formatPhone(phone);
+    return this.request(`/user-addresses/${encodeURIComponent(formattedPhone)}`, {
       method: 'GET',
     });
   }
 
   // Fetch available address types for a user
   async getAvailableAddressTypes(phone: string) {
-    return this.request(`/user-addresses/${encodeURIComponent(phone)}/available-types`, {
+    const formattedPhone = this.formatPhone(phone);
+    return this.request(`/user-addresses/${encodeURIComponent(formattedPhone)}/available-types`, {
       method: 'GET',
     });
   }
 
   // Set default address for a user
   async setDefaultAddress(addressId: string, phone: string) {
+    const formattedPhone = this.formatPhone(phone);
     return this.request(`/user-addresses/${addressId}/set-default`, {
       method: 'POST',
-      body: { userPhone: phone },
+      body: { userPhone: formattedPhone },
     });
   }
   // Address Creation
   async createAddress(addressData: any) {
+    const body = {
+      ...addressData,
+      userPhone: this.formatPhone(addressData.userPhone)
+    };
     return this.request('/user-addresses', {
       method: 'POST',
-      body: addressData,
+      body,
     });
   }
 
   // Address Update
   async updateAddress(addressId: string, addressData: any) {
+    const body = {
+      ...addressData,
+      userPhone: this.formatPhone(addressData.userPhone)
+    };
     return this.request(`/user-addresses/${addressId}`, {
       method: 'PUT',
-      body: addressData,
+      body,
     });
   }
   // Address Deletion
