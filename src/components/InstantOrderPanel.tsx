@@ -8,6 +8,7 @@ import { Separator } from './ui/separator';
 import { Input } from './ui/input';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { Product, Vendor } from '../types';
+import { apiService } from '../utils/api';
 
 export interface CartItem {
   id: string;
@@ -60,6 +61,40 @@ export function InstantOrderPanel({
   onAddAddress
 }: InstantOrderPanelProps) {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [syncedItems, setSyncedItems] = useState<CartItem[]>([]);
+  const [loadingPrices, setLoadingPrices] = useState(false);
+  // apiService is now imported above
+  // Sync prices from backend when cartItems change or panel opens
+  useEffect(() => {
+    let cancelled = false;
+    async function syncPrices() {
+      if (!isOpen || cartItems.length === 0) {
+        setSyncedItems(cartItems);
+        return;
+      }
+      setLoadingPrices(true);
+      try {
+        const productIds = cartItems.map(item => item.productId);
+        const result = await apiService.getProductsByIds(productIds);
+        const products = result.products || result;
+        const priceMap: Record<string, number> = {};
+        products.forEach((prod: any) => {
+          priceMap[prod.id] = prod.price;
+        });
+        const updated = cartItems.map(item => ({
+          ...item,
+          price: priceMap[item.productId] !== undefined ? priceMap[item.productId] : item.price
+        }));
+        if (!cancelled) setSyncedItems(updated);
+      } catch (err) {
+        if (!cancelled) setSyncedItems(cartItems);
+      } finally {
+        if (!cancelled) setLoadingPrices(false);
+      }
+    }
+    syncPrices();
+    return () => { cancelled = true; };
+  }, [isOpen, cartItems]);
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [currentVendor, setCurrentVendor] = useState<Vendor | null>(null);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('upi');
@@ -149,7 +184,7 @@ export function InstantOrderPanel({
   if (!isOpen) return null;
 
   const displayVendor = currentVendor || vendor;
-  const totalPrice = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const totalPrice = syncedItems.length > 0 ? syncedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0) : cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const estimatedDelivery = new Date(Date.now() + 45 * 60 * 1000); // 45 minutes from now
 
   const handleQuantityChange = (productId: string, delta: number) => {
@@ -337,97 +372,98 @@ export function InstantOrderPanel({
               </div>
 
               {/* Cart Items List */}
-              <div className="space-y-3">
-                {cartItems.map((item) => (
-                  <Card key={item.id || item.productId} className="overflow-hidden border border-gray-200">
-                    <CardContent className="p-0">
-                      <div className="flex gap-4 p-4">
-                        <div className="w-16 h-16 flex-shrink-0 relative overflow-hidden rounded-xl">
-                          <ImageWithFallback
-                            src={item.product?.image || ''}
-                            alt={item.name}
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                        
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between mb-2">
-                            <div className="flex-1">
-                              <h3 className="font-semibold text-gray-900 leading-tight text-sm">
-                                {item.name}
-                              </h3>
-                              <p className="text-xs text-gray-600">{item.vendor?.name || displayVendor?.name}</p>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-sm font-bold text-gutzo-selected">
-                                ₹{item.price}
+              {loadingPrices ? (
+                <div className="text-center py-8 text-gray-500">Updating prices...</div>
+              ) : (
+                <div className="space-y-3">
+                  {(syncedItems.length > 0 ? syncedItems : cartItems).map((item) => (
+                    <Card key={item.id || item.productId} className="overflow-hidden border border-gray-200">
+                      <CardContent className="p-0">
+                        <div className="flex gap-4 p-4">
+                          <div className="w-16 h-16 flex-shrink-0 relative overflow-hidden rounded-xl">
+                            <ImageWithFallback
+                              src={item.product?.image || ''}
+                              alt={item.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between mb-2">
+                              <div className="flex-1">
+                                <h3 className="font-semibold text-gray-900 leading-tight text-sm">
+                                  {item.name}
+                                </h3>
+                                <p className="text-xs text-gray-600">{item.vendor?.name || displayVendor?.name}</p>
                               </div>
-                              <div className="text-xs text-gray-500">per bowl</div>
+                              <div className="text-right">
+                                <div className="text-sm font-bold text-gutzo-selected">
+                                  ₹{item.price}
+                                </div>
+                                <div className="text-xs text-gray-500">per bowl</div>
+                              </div>
                             </div>
-                          </div>
-                          
-                          {/* Diet Tags */}
-                          {getDietTags(item).length > 0 && (
-                            <div className="flex flex-wrap gap-1 mb-2">
-                              {getDietTags(item).slice(0, 2).map((tag, index) => (
-                                <Badge 
-                                  key={index} 
-                                  variant="secondary" 
-                                  className="text-xs bg-gutzo-highlight/20 text-gutzo-selected"
-                                >
-                                  {tag}
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
-                          
-                          {/* Quantity Controls */}
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleQuantityChange(item.productId || item.id, -1)}
-                                disabled={item.quantity <= 1}
-                                className="h-8 w-8 p-0 rounded-full border-2"
-                              >
-                                <Minus className="h-3 w-3" />
-                              </Button>
-                              <span className="font-semibold text-sm min-w-[1.5rem] text-center">
-                                {item.quantity}
-                              </span>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => handleQuantityChange(item.productId || item.id, 1)}
-                                disabled={item.quantity >= 10}
-                                className="h-8 w-8 p-0 rounded-full border-2"
-                              >
-                                <Plus className="h-3 w-3" />
-                              </Button>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-semibold text-gray-900">
-                                ₹{(item.price * item.quantity).toLocaleString()}
-                              </span>
-                              {cartItems.length > 1 && (
+                            {/* Diet Tags */}
+                            {getDietTags(item).length > 0 && (
+                              <div className="flex flex-wrap gap-1 mb-2">
+                                {getDietTags(item).slice(0, 2).map((tag, index) => (
+                                  <Badge 
+                                    key={index} 
+                                    variant="secondary" 
+                                    className="text-xs bg-gutzo-highlight/20 text-gutzo-selected"
+                                  >
+                                    {tag}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                            {/* Quantity Controls */}
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
                                 <Button
-                                  variant="ghost"
+                                  variant="outline"
                                   size="sm"
-                                  onClick={() => handleRemoveItem(item.productId || item.id)}
-                                  className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                  onClick={() => handleQuantityChange(item.productId || item.id, -1)}
+                                  disabled={item.quantity <= 1}
+                                  className="h-8 w-8 p-0 rounded-full border-2"
                                 >
-                                  <X className="h-3 w-3" />
+                                  <Minus className="h-3 w-3" />
                                 </Button>
-                              )}
+                                <span className="font-semibold text-sm min-w-[1.5rem] text-center">
+                                  {item.quantity}
+                                </span>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => handleQuantityChange(item.productId || item.id, 1)}
+                                  disabled={item.quantity >= 10}
+                                  className="h-8 w-8 p-0 rounded-full border-2"
+                                >
+                                  <Plus className="h-3 w-3" />
+                                </Button>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-semibold text-gray-900">
+                                  ₹{(item.price * item.quantity).toLocaleString()}
+                                </span>
+                                {(syncedItems.length > 1 ? syncedItems : cartItems).length > 1 && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleRemoveItem(item.productId || item.id)}
+                                    className="h-8 w-8 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Delivery Information */}
@@ -617,7 +653,7 @@ export function InstantOrderPanel({
               <h4 className="font-medium text-gray-900 mb-4">Order Summary</h4>
               
               <div className="space-y-3 text-sm">
-                {cartItems.map((item) => (
+                {(syncedItems.length > 0 ? syncedItems : cartItems).map((item) => (
                   <div key={item.id || item.productId} className="flex justify-between">
                     <span className="text-gray-600">{item.name} × {item.quantity}</span>
                     <span className="font-medium text-gray-900">₹{(item.price * item.quantity).toLocaleString()}</span>

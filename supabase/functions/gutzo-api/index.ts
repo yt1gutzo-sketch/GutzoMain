@@ -352,6 +352,50 @@ app.get('/gutzo-api/categories', async (c)=>{
     }, 500);
   }
 });
+// Batch fetch products by IDs
+app.post('/gutzo-api/products/batch', async (c) => {
+  try {
+    const body = await c.req.json();
+    const productIds = body.productIds;
+    if (!Array.isArray(productIds) || productIds.length === 0) {
+      return c.json({ error: 'No productIds provided' }, 400);
+    }
+    // Fetch products from database
+    const { data, error } = await supabase.from('products').select(`
+      id,
+      vendor_id,
+      name,
+      description,
+      price,
+      image_url,
+      category,
+      tags,
+      is_available,
+      created_at
+    `).in('id', productIds);
+    if (error) {
+      console.error('Failed to batch fetch products:', error);
+      return c.json({ error: 'Failed to fetch products', details: error.message }, 500);
+    }
+    // Transform products to match frontend expectations
+    const products = (data || []).map((product) => ({
+      id: product.id,
+      vendorId: product.vendor_id,
+      name: product.name,
+      description: product.description,
+      price: product.price,
+      image: product.image_url,
+      category: product.category,
+      tags: product.tags || [],
+      available: Boolean(product.is_available),
+      created_at: product.created_at
+    }));
+    return c.json({ products });
+  } catch (error) {
+    console.error('Batch products endpoint error:', error);
+    return c.json({ error: 'Internal server error', details: error.message }, 500);
+  }
+});
 // Get all available products across all vendors
 app.get('/gutzo-api/products/available', async (c)=>{
   try {

@@ -1,7 +1,10 @@
+
+import React, { useState, useEffect } from "react";
 import { X, Plus, Minus, Trash2, ShoppingBag, ArrowRight } from "lucide-react";
 import { Button } from "./ui/button";
 import { useCart } from "../contexts/CartContext";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
+import { apiService } from "../utils/api";
 
 
 
@@ -14,7 +17,37 @@ interface CartPanelProps {
 }
 
 export function CartPanel({ isOpen, onClose, isAuthenticated = false, onShowLogin, onShowCheckout }: CartPanelProps) {
+
   const { items, totalItems, totalAmount, updateQuantityOptimistic, removeItem, clearCart, clearGuestCart } = useCart();
+
+  const [syncedItems, setSyncedItems] = useState<typeof items>(items);
+  const [loadingPrices, setLoadingPrices] = useState<boolean>(false);
+
+  useEffect(() => {
+    async function syncPrices() {
+      if (!isOpen || items.length === 0) return setSyncedItems(items);
+      setLoadingPrices(true);
+      try {
+        const productIds = items.map((item) => item.productId);
+        const result = await apiService.getProductsByIds(productIds);
+        const products: Array<{ id: string; price: number }> = result.products || result;
+        const priceMap: Record<string, number> = {};
+        products.forEach((prod) => {
+          priceMap[prod.id] = prod.price;
+        });
+        const updated = items.map((item) => ({
+          ...item,
+          price: priceMap[item.productId] !== undefined ? priceMap[item.productId] : item.price,
+        }));
+        setSyncedItems(updated);
+      } catch (err) {
+        setSyncedItems(items);
+      } finally {
+        setLoadingPrices(false);
+      }
+    }
+    syncPrices();
+  }, [isOpen, items]);
 
   const handleQuantityChange = async (productId: string, newQuantity: number) => {
     if (newQuantity <= 0) {
@@ -49,8 +82,9 @@ export function CartPanel({ isOpen, onClose, isAuthenticated = false, onShowLogi
 
 
 
-  // Group items by vendor
-  const itemsByVendor = items.reduce((groups, item) => {
+
+  // Group items by vendor (use syncedItems)
+  const itemsByVendor = syncedItems.reduce<Record<string, { vendor: any; items: typeof syncedItems }>>((groups, item) => {
     const vendorId = item.vendorId;
     if (!groups[vendorId]) {
       groups[vendorId] = {
@@ -60,7 +94,7 @@ export function CartPanel({ isOpen, onClose, isAuthenticated = false, onShowLogi
     }
     groups[vendorId].items.push(item);
     return groups;
-  }, {} as Record<string, { vendor: any; items: typeof items }>);
+  }, {});
 
   if (!isOpen) return null;
 
@@ -113,7 +147,7 @@ export function CartPanel({ isOpen, onClose, isAuthenticated = false, onShowLogi
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto">
-            {items.length === 0 ? (
+            {syncedItems.length === 0 ? (
               /* Empty Cart State */
               <div className="flex flex-col items-center justify-center h-full px-6 py-16 text-center">
                 <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-6">
@@ -222,13 +256,13 @@ export function CartPanel({ isOpen, onClose, isAuthenticated = false, onShowLogi
           </div>
 
           {/* Footer with Order Summary */}
-          {items.length > 0 && (
+          {syncedItems.length > 0 && (
             <div className="border-t border-gray-200 bg-white p-4 space-y-4">
               {/* Order Summary */}
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Items ({totalItems})</span>
-                  <span className="text-gray-900">₹{totalAmount.toFixed(0)}</span>
+                  <span className="text-gray-900">₹{syncedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0).toFixed(0)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Delivery Fee</span>
@@ -240,12 +274,12 @@ export function CartPanel({ isOpen, onClose, isAuthenticated = false, onShowLogi
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">GST</span>
-                  <span className="text-gray-900">₹{(totalAmount * 0.05).toFixed(0)}</span>
+                  <span className="text-gray-900">₹{(syncedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0) * 0.05).toFixed(0)}</span>
                 </div>
                 <div className="border-t border-gray-200 pt-2">
                   <div className="flex justify-between font-medium">
                     <span className="text-gray-900">Total</span>
-                    <span className="text-gutzo-primary">₹{(totalAmount + 25 + 5 + totalAmount * 0.05).toFixed(0)}</span>
+                    <span className="text-gutzo-primary">₹{(syncedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0) + 25 + 5 + syncedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0) * 0.05).toFixed(0)}</span>
                   </div>
                 </div>
               </div>
