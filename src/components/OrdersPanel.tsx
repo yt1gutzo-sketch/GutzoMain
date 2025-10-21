@@ -156,11 +156,24 @@ export function OrdersPanel({ className = "", onViewOrderDetails, recentOrderDat
             return (
               <div
                 key={order.id}
-                className={`border rounded-xl p-4 bg-white shadow transition-all duration-200 ${
+                className={`border rounded-xl p-4 bg-white shadow transition-all duration-200 cursor-pointer select-none ${
                   order.status === 'delivered'
                     ? 'border-gutzo-primary bg-gutzo-primary/5'
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
+                onClick={e => {
+                  // Prevent toggle if the button is clicked
+                  if ((e.target as HTMLElement).closest('button')) return;
+                  setExpandedOrderIds(prev => {
+                    const next = new Set(prev);
+                    if (expanded) {
+                      next.delete(order.id);
+                    } else {
+                      next.add(order.id);
+                    }
+                    return next;
+                  });
+                }}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-start space-x-4 flex-1">

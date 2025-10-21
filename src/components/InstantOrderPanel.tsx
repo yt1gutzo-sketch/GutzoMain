@@ -555,7 +555,7 @@ export function InstantOrderPanel({
                 if (cartItems.length === 0 || isProcessing) return;
                 const orderId = `ORD_${Date.now()}`;
                 const customerId = userPhone || 'guest';
-                const amount = totalAmount;
+                const amount = totalAmount * 100; // in paise
                 const redirectUrl = window.location.origin + '/payment-status';
                 try {
                   // Persist order id for status page

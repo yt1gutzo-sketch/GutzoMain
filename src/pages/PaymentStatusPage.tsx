@@ -115,8 +115,8 @@ export default function PaymentStatusPage() {
                 }
                 setTimeout(() => {
                   window.location.href = '/';
-                //}, 2500);
-                }, 10000);
+                }, 2500);
+                //}, 10000);
               })();
             }
           }
