@@ -80,6 +80,14 @@ export function CartPanel({ isOpen, onClose, isAuthenticated = false, onShowLogi
     }
   };
 
+  // GST configuration per your rules:
+  // - Item prices include 5% GST
+  // - Delivery fee is flat ₹50 including 18% GST
+  // - Platform fee is flat ₹10 including 18% GST
+  const ITEMS_GST_RATE = 0.05; // 5%
+  const FEES_GST_RATE = 0.18; // 18%
+  const DELIVERY_FEE = 50;
+  const PLATFORM_FEE = 10;
 
 
 
@@ -243,8 +251,20 @@ export function CartPanel({ isOpen, onClose, isAuthenticated = false, onShowLogi
                           {/* Item Total */}
                           <div className="mt-2 flex justify-end">
                             <span className="font-medium text-gray-900 text-sm">
-                              ₹{(item.price * item.quantity).toFixed(0)}
+                              ₹{(item.price * item.quantity).toFixed(2)}
                             </span>
+                          </div>
+                          {/* GST info per item (included @5%) */}
+                          <div className="mt-1 flex justify-end">
+                            {(() => {
+                              const itemTotal = item.price * item.quantity;
+                              const includedGstItem = itemTotal - (itemTotal / (1 + ITEMS_GST_RATE));
+                              return (
+                                <span className="text-xs text-gray-500">
+                                  Incl. GST ({(ITEMS_GST_RATE * 100).toFixed(0)}%): ₹{includedGstItem.toFixed(2)}
+                                </span>
+                              );
+                            })()}
                           </div>
                         </div>
                       ))}
@@ -260,28 +280,49 @@ export function CartPanel({ isOpen, onClose, isAuthenticated = false, onShowLogi
             <div className="border-t border-gray-200 bg-white p-4 space-y-4">
               {/* Order Summary */}
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Items ({totalItems})</span>
-                  <span className="text-gray-900">₹{syncedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0).toFixed(0)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Delivery Fee</span>
-                  <span className="text-gray-900">₹25</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Platform Fee</span>
-                  <span className="text-gray-900">₹5</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">GST</span>
-                  <span className="text-gray-900">₹{(syncedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0) * 0.05).toFixed(0)}</span>
-                </div>
-                <div className="border-t border-gray-200 pt-2">
-                  <div className="flex justify-between font-medium">
-                    <span className="text-gray-900">Total</span>
-                    <span className="text-gutzo-primary">₹{(syncedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0) + 25 + 5 + syncedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0) * 0.05).toFixed(0)}</span>
-                  </div>
-                </div>
+                {(() => {
+                  // Compute values once for clarity and consistency
+                  const subtotal = syncedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                  const deliveryFee = DELIVERY_FEE;
+                  const platformFee = PLATFORM_FEE;
+                  // Included GST: items at 5%
+                  const includedGstItems = subtotal - (subtotal / (1 + ITEMS_GST_RATE));
+                  // Included GST in fees at 18%
+                  const includedGstDelivery = deliveryFee - (deliveryFee / (1 + FEES_GST_RATE));
+                  const includedGstPlatform = platformFee - (platformFee / (1 + FEES_GST_RATE));
+                  const includedGstFees = includedGstDelivery + includedGstPlatform;
+                  const total = subtotal + deliveryFee + platformFee; // All values are GST-inclusive as per rules
+                  return (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Items ({totalItems})</span>
+                        <span className="text-gray-900">₹{subtotal.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Delivery Fee (incl. 18% GST)</span>
+                        <span className="text-gray-900">₹{deliveryFee.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Platform Fee (incl. 18% GST)</span>
+                        <span className="text-gray-900">₹{platformFee.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">GST included in items @5%</span>
+                        <span className="text-gray-900">₹{includedGstItems.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">GST included in fees @18%</span>
+                        <span className="text-gray-900">₹{includedGstFees.toFixed(2)}</span>
+                      </div>
+                      <div className="border-t border-gray-200 pt-2">
+                        <div className="flex justify-between font-medium">
+                          <span className="text-gray-900">Total</span>
+                          <span className="text-gutzo-primary">₹{total.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
 
               <Button

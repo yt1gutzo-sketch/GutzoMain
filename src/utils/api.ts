@@ -262,35 +262,43 @@ class ApiService {
     }
   }
 
-    // User Authentication
-    async validateUser(phone: string) {
-      const formattedPhone = phone.startsWith('+91') ? phone : `+91${phone}`;
-      return this.request('/validate-user', {
-        method: 'POST',
-        body: { phone: formattedPhone },
-      });
-    }
+  // PhonePe Payment Integration
+  async createPhonePePayment({ amount, orderId, customerId, redirectUrl }: { amount: number, orderId: string, customerId: string, redirectUrl: string }) {
+    return this.request('/create-phonepe-payment', {
+      method: 'POST',
+      body: { amount, orderId, customerId, redirectUrl },
+    });
+  }
 
-    async getUser(phone: string) {
-      const formattedPhone = phone.startsWith('+91') ? phone : `+91${phone}`;
-      return this.request('/get-user', {
-        method: 'POST',
-        body: { phone: formattedPhone },
-      });
-    }
+  // User Authentication
+  async validateUser(phone: string) {
+    const formattedPhone = phone.startsWith('+91') ? phone : `+91${phone}`;
+    return this.request('/validate-user', {
+      method: 'POST',
+      body: { phone: formattedPhone },
+    });
+  }
 
-    async createUser(authData: { phone: string; name: string; verified: boolean; email?: string | null }) {
-      const formattedPhone = authData.phone.startsWith('+91') ? authData.phone : `+91${authData.phone}`;
-      return this.request('/create-user', {
-        method: 'POST',
-        body: {
-          phone: formattedPhone,
-          name: authData.name || 'User',
-          verified: authData.verified,
-          email: authData.email || null,
-        },
-      });
-    }
+  async getUser(phone: string) {
+    const formattedPhone = phone.startsWith('+91') ? phone : `+91${phone}`;
+    return this.request('/get-user', {
+      method: 'POST',
+      body: { phone: formattedPhone },
+    });
+  }
+
+  async createUser(authData: { phone: string; name: string; verified: boolean; email?: string | null }) {
+    const formattedPhone = authData.phone.startsWith('+91') ? authData.phone : `+91${authData.phone}`;
+    return this.request('/create-user', {
+      method: 'POST',
+      body: {
+        phone: formattedPhone,
+        name: authData.name || 'User',
+        verified: authData.verified,
+        email: authData.email || null,
+      },
+    });
+  }
 }
 
 export const apiService = new ApiService();

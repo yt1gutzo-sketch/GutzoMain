@@ -18,7 +18,6 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { RouterProvider, useRouter } from "./components/Router";
 import { CartPanel } from "./components/CartPanel";
 import { InstantOrderPanel } from "./components/InstantOrderPanel";
-import { PaymentPanel } from "./components/PaymentPanel";
 import { TermsPage } from "./pages/TermsPage";
 import { RefundPage } from "./pages/RefundPage";
 import { PrivacyPage } from "./pages/PrivacyPage";
@@ -49,7 +48,6 @@ function AppContent() {
   const [profileOrderData, setProfileOrderData] = useState<any>(null);
   const [showCartPanel, setShowCartPanel] = useState(false);
   const [showCheckoutPanel, setShowCheckoutPanel] = useState(false);
-  const [showPaymentPanel, setShowPaymentPanel] = useState(false);
   const [checkoutData, setCheckoutData] = useState<any>(null);
   const [showPaymentSuccess, setShowPaymentSuccess] = useState(false);
   const [paymentSuccessData, setPaymentSuccessData] = useState<{
@@ -193,16 +191,13 @@ function AppContent() {
   const handleProceedToPayment = (orderData: any) => {
     setCheckoutData(orderData);
     setShowCheckoutPanel(false);
-    setShowPaymentPanel(true);
   };
 
   const handleClosePayment = () => {
-    setShowPaymentPanel(false);
     setCheckoutData(null);
   };
 
   const handleBackToCheckout = () => {
-    setShowPaymentPanel(false);
     setShowCheckoutPanel(true);
   };
 
@@ -242,7 +237,6 @@ function AppContent() {
     // Close any open panels
     setIsMenuDrawerOpen(false);
     setShowCheckoutPanel(false);
-    setShowPaymentPanel(false);
     setShowCartPanel(false);
     setCheckoutData(null);
   };
@@ -505,17 +499,6 @@ function AppContent() {
             setShowProfilePanel(true);
           }, 250);
         }}
-      />
-
-      {/* Payment Panel */}
-      <PaymentPanel
-        isOpen={showPaymentPanel}
-        onClose={handleClosePayment}
-        onBack={handleBackToCheckout}
-        instantOrderData={checkoutData}
-        product={checkoutData?.cartItems?.[0]?.product || null}
-        vendor={checkoutData?.vendor || null}
-        onPaymentSuccess={handlePaymentSuccess}
       />
 
       {/* Payment Success Modal */}

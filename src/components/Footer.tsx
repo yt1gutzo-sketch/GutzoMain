@@ -11,7 +11,8 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
           <div>
             <ImageWithFallback
-              src="https://jrpiqxajjpyxiitweoqc.supabase.co/storage/v1/object/public/Gutzo%20Logo/GUTZO.svg"
+              src="http://192.168.1.39:54321/storage/v1/object/public/Gutzo/GUTZO.svg"
+              //src="https://jrpiqxajjpyxiitweoqc.supabase.co/storage/v1/object/public/Gutzo%20Logo/GUTZO.svg"
               alt="Gutzo - Healthy Feels Good"
               className="h-16 w-auto mb-4"
             />

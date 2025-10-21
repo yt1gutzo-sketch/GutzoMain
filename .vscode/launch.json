@@ -10,7 +10,7 @@
             "request": "launch",
             "name": "Run Vite (npm)",
             "runtimeExecutable": "npm",
-            "runtimeArgs": ["run", "dev"],
+            "runtimeArgs": ["run", "dev", "--", "--host"],
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal"
         },
@@ -18,8 +18,26 @@
             "type": "chrome",
             "request": "launch",
             "name": "Debug Frontend in Chrome",
-            "url": "http://localhost:5173",
-            "webRoot": "${workspaceFolder}/src"
+            "url": "http://localhost:3000",
+            "webRoot": "${workspaceFolder}",
+            "sourceMaps": true,
+            "skipFiles": [
+                "<node_internals>/**",
+                "**/node_modules/**"
+            ],
+            "sourceMapPathOverrides": {
+                "webpack:///src/*": "${webRoot}/src/*",
+                "vite:///*": "${webRoot}/*",
+                "*/src/*": "${webRoot}/src/*"
+            }
+        }
+    ]
+    ,
+    "compounds": [
+        {
+            "name": "Run and Debug Vite",
+            "configurations": ["Run Vite (npm)", "Debug Frontend in Chrome"],
+            "stopAll": true
         }
     ]
 }

@@ -151,7 +151,7 @@ export function OrdersPanel({ className = "", onViewOrderDetails, recentOrderDat
               id: orderId,
               subscriptionId: orderId,
               vendorName: recentOrderData.orderSummary.vendor,
-              vendorPhone: '+919876543210', // Mock phone number
+              vendorPhone: '+919790312308', // Mock phone number
               productName: 'Healthy Bowl', // Mock product name
               productImage: 'https://images.unsplash.com/photo-1546554137-f86b9593a222?w=400&h=300&fit=crop', // Mock image
               mealSlots: ['Lunch'],
@@ -187,7 +187,7 @@ export function OrdersPanel({ className = "", onViewOrderDetails, recentOrderDat
             const newInstantOrder: InstantOrder = {
               id: orderId,
               vendorName: recentOrderData.orderSummary.vendor,
-              vendorPhone: '+919876543210', // Mock phone number
+              vendorPhone: '+919790312308', // Mock phone number
               productName: 'Healthy Bowl', // Mock product name
               productImage: 'https://images.unsplash.com/photo-1546554137-f86b9593a222?w=400&h=300&fit=crop', // Mock image
               quantity: parseInt(recentOrderData.orderSummary.quantity) || 1,
@@ -290,7 +290,7 @@ export function OrdersPanel({ className = "", onViewOrderDetails, recentOrderDat
 
   const handleCallSupport = () => {
     // Gutzo support phone number
-    const supportPhone = '+919876543210'; // Replace with actual support number
+    const supportPhone = '+918903589068'; // Replace with actual support number
     const callUrl = `tel:${supportPhone}`;
     window.location.href = callUrl;
     toast.success('Calling Gutzo Support...');

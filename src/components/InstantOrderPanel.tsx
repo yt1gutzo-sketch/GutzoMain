@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Plus, Minus, ShoppingCart, Clock, MapPin, ArrowLeft, CreditCard, Smartphone, Wallet, CheckCircle } from 'lucide-react';
 import { toast } from "sonner@2.0.3";
 import { Button } from './ui/button';
+// ...existing code...
 import { Badge } from './ui/badge';
 import { Card, CardContent } from './ui/card';
 import { Separator } from './ui/separator';
@@ -102,6 +103,15 @@ export function InstantOrderPanel({
   const [upiId, setUpiId] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // GST rules (aligned with cart):
+  // - Item prices include 5% GST
+  // - Delivery fee is flat ₹50 including 18% GST
+  // - Platform fee is flat ₹10 including 18% GST
+  const ITEMS_GST_RATE = 0.05; // 5%
+  const FEES_GST_RATE = 0.18; // 18%
+  const DELIVERY_FEE = 50;
+  const PLATFORM_FEE = 10;
+
   // Digital wallet options
   const digitalWallets = [
     { id: 'paytm', name: 'Paytm', icon: '💰', color: 'bg-blue-500' },
@@ -186,6 +196,15 @@ export function InstantOrderPanel({
   const displayVendor = currentVendor || vendor;
   const totalPrice = syncedItems.length > 0 ? syncedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0) : cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const estimatedDelivery = new Date(Date.now() + 45 * 60 * 1000); // 45 minutes from now
+
+  // Included GST computations
+  const deliveryFee = DELIVERY_FEE;
+  const platformFee = PLATFORM_FEE;
+  const includedGstItems = totalPrice - (totalPrice / (1 + ITEMS_GST_RATE));
+  const includedGstDelivery = deliveryFee - (deliveryFee / (1 + FEES_GST_RATE));
+  const includedGstPlatform = platformFee - (platformFee / (1 + FEES_GST_RATE));
+  const includedGstFees = includedGstDelivery + includedGstPlatform;
+  const totalAmount = totalPrice + deliveryFee + platformFee; // All GST-inclusive
 
   const handleQuantityChange = (productId: string, delta: number) => {
     setCartItems(prevItems => 
@@ -397,7 +416,7 @@ export function InstantOrderPanel({
                               </div>
                               <div className="text-right">
                                 <div className="text-sm font-bold text-gutzo-selected">
-                                  ₹{item.price}
+                                  ₹{item.price.toFixed(2)}
                                 </div>
                                 <div className="text-xs text-gray-500">per bowl</div>
                               </div>
@@ -443,7 +462,7 @@ export function InstantOrderPanel({
                               </div>
                               <div className="flex items-center gap-2">
                                 <span className="text-sm font-semibold text-gray-900">
-                                  ₹{(item.price * item.quantity).toLocaleString()}
+                                  ₹{(item.price * item.quantity).toFixed(2)}
                                 </span>
                                 {(syncedItems.length > 1 ? syncedItems : cartItems).length > 1 && (
                                   <Button
@@ -456,6 +475,16 @@ export function InstantOrderPanel({
                                   </Button>
                                 )}
                               </div>
+                            </div>
+                            {/* GST info per item (included @5%) */}
+                            <div className="mt-1 text-right">
+                              {(() => {
+                                const itemTotal = item.price * item.quantity;
+                                const includedGstItem = itemTotal - (itemTotal / (1 + ITEMS_GST_RATE));
+                                return (
+                                  <span className="text-xs text-gray-500">Incl. GST ({(ITEMS_GST_RATE * 100).toFixed(0)}%): ₹{includedGstItem.toFixed(2)}</span>
+                                );
+                              })()}
                             </div>
                           </div>
                         </div>
@@ -472,181 +501,8 @@ export function InstantOrderPanel({
             {/* Special Instructions */}
 
 
-            {/* Payment Methods */}
-            <div>
-              <h4 className="font-medium text-gray-900 mb-4">Choose Payment Method</h4>
-              
-              <div className="space-y-3">
-                {/* UPI Payment */}
-                <div 
-                  className={`border rounded-xl p-4 cursor-pointer transition-all ${
-                    selectedPaymentMethod === 'upi' 
-                      ? 'border-gutzo-primary bg-gutzo-primary/5' 
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                  onClick={() => setSelectedPaymentMethod('upi')}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-full ${
-                      selectedPaymentMethod === 'upi' ? 'bg-gutzo-primary/15' : 'bg-gray-100'
-                    }`}>
-                      <Smartphone className={`h-5 w-5 ${
-                        selectedPaymentMethod === 'upi' ? 'text-gutzo-primary' : 'text-gray-600'
-                      }`} />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h5 className="font-medium text-gray-900">UPI</h5>
-                        <Badge variant="secondary" className="text-xs bg-gutzo-highlight/20 text-gutzo-selected">
-                          Popular
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-gray-600">Pay using PhonePe, GPay, Paytm</p>
-                    </div>
-                    <div className={`w-5 h-5 rounded-full border-2 ${
-                      selectedPaymentMethod === 'upi' 
-                        ? 'border-gutzo-primary bg-gutzo-primary' 
-                        : 'border-gray-300'
-                    }`}>
-                      {selectedPaymentMethod === 'upi' && (
-                        <CheckCircle className="h-3 w-3 text-white m-0.5" />
-                      )}
-                    </div>
-                  </div>
-                  
-                  {selectedPaymentMethod === 'upi' && (
-                    <div className="mt-4 pt-4 border-t border-gray-200">
-                      <Input
-                        placeholder="Enter UPI ID (optional)"
-                        value={upiId}
-                        onChange={(e) => setUpiId(e.target.value)}
-                        className="text-sm"
-                      />
-                      <p className="text-xs text-gray-500 mt-2">
-                        Or choose from popular UPI apps after clicking Place Order
-                      </p>
-                    </div>
-                  )}
-                </div>
 
-                {/* Card Payment */}
-                <div 
-                  className={`border rounded-xl p-4 cursor-pointer transition-all ${
-                    selectedPaymentMethod === 'card' 
-                      ? 'border-gutzo-primary bg-gutzo-primary/5' 
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                  onClick={() => setSelectedPaymentMethod('card')}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-full ${
-                      selectedPaymentMethod === 'card' ? 'bg-gutzo-primary/15' : 'bg-gray-100'
-                    }`}>
-                      <CreditCard className={`h-5 w-5 ${
-                        selectedPaymentMethod === 'card' ? 'text-gutzo-primary' : 'text-gray-600'
-                      }`} />
-                    </div>
-                    <div className="flex-1">
-                      <h5 className="font-medium text-gray-900">Credit/Debit Card</h5>
-                      <p className="text-xs text-gray-600">Visa, Mastercard, RuPay</p>
-                    </div>
-                    <div className={`w-5 h-5 rounded-full border-2 ${
-                      selectedPaymentMethod === 'card' 
-                        ? 'border-gutzo-primary bg-gutzo-primary' 
-                        : 'border-gray-300'
-                    }`}>
-                      {selectedPaymentMethod === 'card' && (
-                        <CheckCircle className="h-3 w-3 text-white m-0.5" />
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Wallet Payment */}
-                <div 
-                  className={`border rounded-xl p-4 cursor-pointer transition-all ${
-                    selectedPaymentMethod === 'wallet' 
-                      ? 'border-gutzo-primary bg-gutzo-primary/5' 
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                  onClick={() => setSelectedPaymentMethod('wallet')}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-full ${
-                      selectedPaymentMethod === 'wallet' ? 'bg-gutzo-primary/15' : 'bg-gray-100'
-                    }`}>
-                      <Wallet className={`h-5 w-5 ${
-                        selectedPaymentMethod === 'wallet' ? 'text-gutzo-primary' : 'text-gray-600'
-                      }`} />
-                    </div>
-                    <div className="flex-1">
-                      <h5 className="font-medium text-gray-900">Digital Wallets</h5>
-                      <p className="text-xs text-gray-600">
-                        {selectedWallet && selectedPaymentMethod === 'wallet' 
-                          ? `Selected: ${digitalWallets.find(w => w.id === selectedWallet)?.name || 'Choose wallet'}`
-                          : 'Choose from popular wallets'
-                        }
-                      </p>
-                    </div>
-                    <div className={`w-5 h-5 rounded-full border-2 ${
-                      selectedPaymentMethod === 'wallet' 
-                        ? 'border-gutzo-primary bg-gutzo-primary' 
-                        : 'border-gray-300'
-                    }`}>
-                      {selectedPaymentMethod === 'wallet' && (
-                        <CheckCircle className="h-3 w-3 text-white m-0.5" />
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Progressive Disclosure - Wallet Options */}
-                  {selectedPaymentMethod === 'wallet' && (
-                    <div className="mt-4 pt-4 border-t border-gray-200">
-                      <p className="text-sm font-medium text-gray-900 mb-3">Choose your wallet:</p>
-                      <div className="grid grid-cols-2 gap-2">
-                        {digitalWallets.map((wallet) => (
-                          <div
-                            key={wallet.id}
-                            className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${
-                              selectedWallet === wallet.id
-                                ? 'border-gutzo-primary bg-gutzo-primary/5'
-                                : 'border-gray-200 hover:border-gray-300'
-                            }`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedWallet(wallet.id);
-                            }}
-                          >
-                            <div className="flex items-center gap-2">
-                              <div className={`w-8 h-8 rounded-full ${wallet.color} flex items-center justify-center text-white text-sm`}>
-                                {wallet.icon}
-                              </div>
-                              <div className="flex-1">
-                                <p className="text-sm font-medium text-gray-900">{wallet.name}</p>
-                              </div>
-                              <div className={`w-4 h-4 rounded-full border-2 ${
-                                selectedWallet === wallet.id
-                                  ? 'border-gutzo-primary bg-gutzo-primary'
-                                  : 'border-gray-300'
-                              }`}>
-                                {selectedWallet === wallet.id && (
-                                  <CheckCircle className="h-2 w-2 text-white m-0.5" />
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      {!selectedWallet && (
-                        <p className="text-xs text-gray-500 mt-2">
-                          Please select a wallet to continue
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
+            {/* Only one payment button at the bottom for PhonePe integration */}
 
             {/* Order Summary */}
             <div className="bg-gradient-to-br from-gutzo-highlight/15 to-gutzo-primary/10 rounded-xl p-5 border border-gutzo-primary/20">
@@ -660,21 +516,30 @@ export function InstantOrderPanel({
                   </div>
                 ))}
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Delivery fee</span>
-                  <span className="font-medium text-gutzo-selected">FREE</span>
+                  <span className="text-gray-600">Delivery fee (incl. 18% GST)</span>
+                  <span className="font-medium text-gray-900">₹{deliveryFee.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Packaging fee</span>
-                  <span className="font-medium text-gray-900">₹5</span>
+                  <span className="text-gray-600">Platform fee (incl. 18% GST)</span>
+                  <span className="font-medium text-gray-900">₹{platformFee.toFixed(2)}</span>
                 </div>
 
                 <Separator className="my-3" />
+
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>GST included in items @5%</span>
+                  <span>₹{includedGstItems.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>GST included in fees @18%</span>
+                  <span>₹{includedGstFees.toFixed(2)}</span>
+                </div>
 
                 <div className="flex justify-between items-center pt-2">
                   <span className="font-medium text-gray-900">Total Amount:</span>
                   <div className="text-right">
                     <div className="text-xl font-bold text-gutzo-selected">
-                      ₹{(totalPrice + 5).toLocaleString()}
+                      ₹{totalAmount.toFixed(2)}
                     </div>
                     <div className="text-xs text-gray-500">Includes all charges</div>
                   </div>
@@ -686,7 +551,25 @@ export function InstantOrderPanel({
           {/* Order Button */}
           <div className="p-6 border-t border-gray-200 bg-gray-50/50">
             <Button
-              onClick={handleConfirm}
+              onClick={async () => {
+                if (cartItems.length === 0 || isProcessing) return;
+                const orderId = `ORD_${Date.now()}`;
+                const customerId = userPhone || 'guest';
+                const amount = totalAmount;
+                const redirectUrl = window.location.origin + '/payment-status';
+                try {
+                  const data = await apiService.createPhonePePayment({ amount, orderId, customerId, redirectUrl });
+                  if (data && data.data && data.data.data && data.data.data.instrumentResponse && data.data.data.instrumentResponse.redirectInfo) {
+                    window.location.href = data.data.data.instrumentResponse.redirectInfo.url;
+                  } else {
+                    alert('Failed to initiate PhonePe payment.');
+                  }
+                } catch (err) {
+                  let message = 'Unknown error';
+                  if (err instanceof Error) message = err.message;
+                  alert('Error initiating payment: ' + message);
+                }
+              }}
               disabled={cartItems.length === 0 || isProcessing}
               className="w-full bg-gradient-to-r from-gutzo-primary to-gutzo-primary-hover text-white font-medium py-4 rounded-xl hover:shadow-lg transition-all disabled:opacity-50"
             >
@@ -697,14 +580,13 @@ export function InstantOrderPanel({
                 </div>
               ) : cartItems.length > 0 ? (
                 <div className="flex items-center justify-center gap-2">
-                  <ShoppingCart className="w-4 h-4" />
-                  Place Order - ₹{(totalPrice + 5).toLocaleString()}
+                  <Smartphone className="w-4 h-4" />
+                  Pay with PhonePe - ₹{totalAmount.toFixed(2)}
                 </div>
               ) : (
                 'Add items to proceed'
               )}
             </Button>
-            
             <p className="text-xs text-gray-500 text-center mt-3">
               By proceeding, you agree to our Terms & Conditions
             </p>

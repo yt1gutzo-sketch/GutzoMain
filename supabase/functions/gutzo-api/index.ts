@@ -58,6 +58,106 @@ async function checkDatabaseSchema() {
     console.error('❌ Database schema check error:', error);
   }
 }
+
+
+
+const PHONEPE_MERCHANT_ID = Deno.env.get('PHONEPE_MERCHANT_ID');
+const PHONEPE_SALT_KEY = Deno.env.get('PHONEPE_SALT_KEY');
+const PHONEPE_CLIENT_VERSION = Deno.env.get('PHONEPE_CLIENT_VERSION');
+// Use UAT (sandbox) endpoint for test mode as per PhonePe docs
+const PHONEPE_BASE_URL = 'https://api-preprod.phonepe.com/apis/pg-sandbox';
+
+// Create PhonePe Payment
+app.post('/gutzo-api/create-phonepe-payment', async (c) => {
+  const body = await c.req.json();
+  const { amount, orderId, customerId, redirectUrl } = body;
+  // Validate required fields
+  if (!amount || !orderId || !customerId || !redirectUrl) {
+    console.error('Missing required payment fields:', { amount, orderId, customerId, redirectUrl });
+    return c.json({ success: false, error: 'Missing required payment fields', details: { amount, orderId, customerId, redirectUrl } }, 400);
+  }
+  // Warn if redirectUrl is localhost (not allowed in UAT/production)
+  if (redirectUrl.includes('localhost') || redirectUrl.includes('127.0.0.1')) {
+    console.warn('⚠️ PhonePe redirectUrl is localhost. Use a public URL for UAT/production.');
+  }
+  // Prepare payload as per PhonePe UAT docs
+  const payload = {
+    merchantId: PHONEPE_MERCHANT_ID,
+    merchantTransactionId: orderId,
+    merchantUserId: customerId,
+    amount: amount * 100, // in paise
+    redirectUrl,
+    redirectMode: 'POST',
+    callbackUrl: redirectUrl, // You may want to set a real webhook URL here
+    paymentInstrument: {
+      type: 'PAY_PAGE'
+    }
+  };
+  console.log('[PhonePe] ENV:', {
+    PHONEPE_MERCHANT_ID,
+    PHONEPE_SALT_KEY,
+    PHONEPE_CLIENT_VERSION,
+    PHONEPE_BASE_URL
+  });
+  console.log('[PhonePe] Payment payload:', payload);
+  // Deno-compatible base64 encoding
+  function toBase64(str) {
+    return btoa(unescape(encodeURIComponent(str)));
+  }
+  const payloadBase64 = toBase64(JSON.stringify(payload));
+  // UAT endpoint path for payment initiation
+  const phonepePath = '/v3/charge/initiate';
+  // X-VERIFY: SHA256(base64Payload + endpoint + saltKey) + '###' + clientVersion
+  const stringToSign = payloadBase64 + phonepePath + PHONEPE_SALT_KEY;
+  async function sha256Hex(str) {
+    const buffer = new TextEncoder().encode(str);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+    return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+  const hashHex = await sha256Hex(stringToSign);
+  const xVerify = hashHex + '###' + PHONEPE_CLIENT_VERSION;
+  console.log('[PhonePe] x-verify:', xVerify);
+  // Call PhonePe API
+  let result;
+  try {
+    const response = await fetch(PHONEPE_BASE_URL + phonepePath, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-VERIFY': xVerify,
+        'X-MERCHANT-ID': PHONEPE_MERCHANT_ID
+      },
+      body: JSON.stringify({ request: payloadBase64 })
+    });
+    const text = await response.text();
+    try {
+      result = JSON.parse(text);
+    } catch (jsonErr) {
+      console.error('[PhonePe] Failed to parse response as JSON:', text);
+      return c.json({ success: false, error: 'Invalid response from PhonePe', details: text }, 502);
+    }
+    console.log('[PhonePe] API response:', result);
+    if (!response.ok || result.success === false) {
+      console.error('[PhonePe] payment initiation failed:', result);
+      return c.json({ success: false, error: 'PhonePe payment initiation failed', details: result }, 502);
+    }
+    // Return payment URL/token to frontend
+    return c.json({ success: true, data: result });
+  } catch (err) {
+    console.error('[PhonePe] Error calling API:', err);
+    return c.json({ success: false, error: 'Error calling PhonePe API', details: err?.message || err }, 500);
+  }
+});
+
+// PhonePe Webhook Handler
+app.post('/gutzo-api/phonepe-webhook', async (c) => {
+  const body = await c.req.json();
+  // TODO: Validate webhook signature and update order/payment status in DB
+  console.log('PhonePe Webhook:', body);
+  // Respond to PhonePe
+  return c.json({ success: true });
+});
+
 // Check database schema on startup (non-blocking)
 checkDatabaseSchema();
 // Health check

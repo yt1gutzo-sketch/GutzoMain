@@ -163,7 +163,7 @@ export function VendorRegistrationForm({ onSuccess, onCancel }: VendorRegistrati
               id="whatsapp"
               value={formData.contact_whatsapp}
               onChange={(e) => handleInputChange("contact_whatsapp", e.target.value)}
-              placeholder="e.g., +919876543210"
+              placeholder="e.g., +918903589068"
               required
             />
             <p className="text-sm text-gray-500">

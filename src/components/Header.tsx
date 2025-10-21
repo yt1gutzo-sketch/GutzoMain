@@ -52,7 +52,8 @@ export function Header({ onShowLogin, onLogout, onShowProfile, onShowCart, onSho
           <div className="flex-shrink-0">
             <div className="flex items-center">
               <ImageWithFallback
-                src="https://jrpiqxajjpyxiitweoqc.supabase.co/storage/v1/object/public/Gutzo%20Logo/GUTZO.svg"
+                src="http://192.168.1.39:54321/storage/v1/object/public/Gutzo/GUTZO.svg"
+                //src="https://jrpiqxajjpyxiitweoqc.supabase.co/storage/v1/object/public/Gutzo%20Logo/GUTZO.svg"
                 alt="Gutzo - Healthy Feels Good"
                 className="h-24 w-auto sm:h-32 md:h-40"
               />

@@ -132,7 +132,7 @@ export class LocationService {
             const locationData = await this.reverseGeocode(latitude, longitude);
             
             // Cache the location
-            this.cacheLocation(locationData);
+            //this.cacheLocation(locationData);
             
             resolve(locationData);
           } catch (error) {
@@ -164,11 +164,11 @@ export class LocationService {
   // Get location (cached or fresh)
   static async getLocation(): Promise<LocationData | null> {
     // Try cached location first
-    const cached = this.getCachedLocation();
-    if (cached) {
-      console.log('Using cached location:', this.getLocationDisplay(cached));
-      return cached;
-    }
+    // const cached = this.getCachedLocation();
+    // if (cached) {
+    //   console.log('Using cached location:', this.getLocationDisplay(cached));
+    //   return cached;
+    // }
 
     // If no cache, try to get fresh location
     try {
@@ -194,8 +194,7 @@ export class LocationService {
     
     return (
       city.includes('coimbatore') ||
-      city.includes('kovai') ||
-      (city.includes('coimbra') && state.includes('tamil'))
+      city.includes('kovai')
     );
   }
 }

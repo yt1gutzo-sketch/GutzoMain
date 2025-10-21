@@ -207,7 +207,7 @@ const AddressForm = ({
                     lng: location.coordinates.longitude,
                     address: locationDisplay || "",
                   }
-                : { lat: 40.2038, lng: -8.41, address: "" } // Fallback to Coimbra
+                : { lat: 11.0018115, lng: 76.9628425, address: "" } // Fallback to Coimbatore
           }
           className="mb-5"
         />
