@@ -36,7 +36,7 @@ export default function PaymentStatusPage() {
       try {
         const res = await apiService.getPhonePePaymentStatus(id);
         const result = res?.data || res; // handle either shape
-        console.log('PhonePe payment status response:', result);
+  console.log('PhonePe payment status response:', JSON.stringify(result, null, 2));
         const code = result?.code || result?.data?.code;
         const state = result?.state || result?.data?.state;
         // Treat code SUCCESS or state COMPLETED/SUCCESS as payment success
@@ -70,6 +70,19 @@ export default function PaymentStatusPage() {
                   const totalGst = includedGstItems + includedGstFees;
 
                   const trueTotal = subtotal + DELIVERY_FEE + PLATFORM_FEE;
+
+                  // Extract PhonePe transaction ID from payment status response
+                  let paymentId = null;
+                  // Prefer transactionId from paymentDetails[0] if available
+                  if (Array.isArray(result?.paymentDetails) && result.paymentDetails.length > 0) {
+                    paymentId = result.paymentDetails[0].transactionId;
+                  }
+                  // Fallbacks for other possible locations
+                  if (!paymentId) {
+                    paymentId = result?.transactionId || result?.data?.transactionId || result?.data?.providerReferenceId || result?.providerReferenceId || null;
+                  }
+                  console.log('[DEBUG] Saving order with paymentId:', paymentId);
+
                   const payload = {
                     orderId: id,
                     userPhone: user?.phone,
@@ -82,7 +95,8 @@ export default function PaymentStatusPage() {
                     taxes: Number(totalGst.toFixed(2)),
                     gst_items: Number(includedGstItems.toFixed(2)),
                     gst_fees: Number(includedGstFees.toFixed(2)),
-                    // Add more fields as needed (address, paymentId, etc.)
+                    paymentId, // Store PhonePe transaction ID
+                    // Add more fields as needed (address, etc.)
                   };
                   const resp = await apiService.saveOrder(payload);
                   if (resp?.success) {
@@ -101,7 +115,8 @@ export default function PaymentStatusPage() {
                 }
                 setTimeout(() => {
                   window.location.href = '/';
-                }, 2500);
+                //}, 2500);
+                }, 10000);
               })();
             }
           }

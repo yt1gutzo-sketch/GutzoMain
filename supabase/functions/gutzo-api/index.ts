@@ -75,7 +75,8 @@ const PHONEPE_BASE_URL = Deno.env.get('PHONEPE_BASE_URL');
 app.post('/gutzo-api/save-order', async (c) => {
   try {
     const body = await c.req.json();
-  const { orderId, userPhone, items, totalAmount, address, paymentId, paymentStatus, vendorId, subtotal, deliveryFee, packagingFee, taxes, discountAmount, deliveryPhone, specialInstructions, platformFee, gst_items, gst_fees } = body;
+    const { orderId, userPhone, items, totalAmount, address, paymentId, paymentStatus, vendorId, subtotal, deliveryFee, packagingFee, taxes, discountAmount, deliveryPhone, specialInstructions, platformFee, gst_items, gst_fees } = body;
+    console.log('[DEBUG] /save-order received:', { orderId, paymentId });
     if (!orderId || !userPhone || !items || !Array.isArray(items) || items.length === 0 || !totalAmount || !vendorId) {
       return c.json({ success: false, error: 'Missing required order fields' }, 400);
     }

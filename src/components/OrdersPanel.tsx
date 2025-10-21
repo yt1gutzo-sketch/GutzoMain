@@ -232,6 +232,12 @@ export function OrdersPanel({ className = "", onViewOrderDetails, recentOrderDat
                             <span>Total</span>
                             <span>₹{order.total_amount !== undefined && order.total_amount !== null ? Number(order.total_amount).toFixed(2) : ''}</span>
                           </div>
+                          {order.payment_id && (
+                            <div className="flex justify-between text-gray-600 text-xs mt-2">
+                              <span>Transaction ID:</span>
+                              <span className="font-mono">{order.payment_id}</span>
+                            </div>
+                          )}
                           <div className="text-gray-600 mb-1 mt-2">
                             <span className="font-medium">Placed:</span> {new Date(order.created_at).toLocaleString()}
                           </div>
