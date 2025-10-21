@@ -1,6 +1,13 @@
+
+
 import { supabase } from './supabase/client';
 
 class ApiService {
+  // Fetch all orders for a user by phone
+  async getOrders(phone: string) {
+    return this.request(`/orders/${encodeURIComponent(phone)}`, { method: 'GET' });
+  }
+  // ...existing code...
   private formatPhone(phone: string) {
     if (!phone) return '';
     return phone.startsWith('+91') ? phone : `+91${phone}`;
@@ -262,11 +269,25 @@ class ApiService {
     }
   }
 
+  // Save order (public method for /save-order endpoint)
+  async saveOrder(orderPayload: any) {
+    return this.request('/save-order', {
+      method: 'POST',
+      body: orderPayload,
+    });
+  }
+
   // PhonePe Payment Integration
   async createPhonePePayment({ amount, orderId, customerId, redirectUrl }: { amount: number, orderId: string, customerId: string, redirectUrl: string }) {
     return this.request('/create-phonepe-payment', {
       method: 'POST',
       body: { amount, orderId, customerId, redirectUrl },
+    });
+  }
+
+  async getPhonePePaymentStatus(orderId: string) {
+    return this.request(`/phonepe-status/${encodeURIComponent(orderId)}`, {
+      method: 'GET',
     });
   }
 

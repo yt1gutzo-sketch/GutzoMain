@@ -21,6 +21,7 @@ import { InstantOrderPanel } from "./components/InstantOrderPanel";
 import { TermsPage } from "./pages/TermsPage";
 import { RefundPage } from "./pages/RefundPage";
 import { PrivacyPage } from "./pages/PrivacyPage";
+import PaymentStatusPage from "./pages/PaymentStatusPage";
 import { Toaster } from "./components/ui/sonner";
 import { Loader2, MapPin, Plus } from "lucide-react";
 import { Vendor } from "./types";
@@ -330,6 +331,14 @@ function AppContent() {
     return (
       <div style={{ minHeight: '100vh' }}>
         <PrivacyPage />
+      </div>
+    );
+  }
+
+  if (currentRoute === '/payment-status') {
+    return (
+      <div style={{ minHeight: '100vh' }}>
+        <PaymentStatusPage />
       </div>
     );
   }

@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 
-type Route = '/' | '/T&C' | '/refund_policy' | '/privacy_policy';
+type Route = '/' | '/T&C' | '/refund_policy' | '/privacy_policy' | '/payment-status';
 
 interface RouterContextType {
   currentRoute: Route;
@@ -18,7 +18,8 @@ export function RouterProvider({ children }: { children: ReactNode }) {
       '/': 'Gutzo - Healthy Meals in Coimbra',
       '/T&C': 'Terms & Conditions - Gutzo',
       '/refund_policy': 'Refund Policy - Gutzo',
-      '/privacy_policy': 'Privacy Policy - Gutzo'
+      '/privacy_policy': 'Privacy Policy - Gutzo',
+      '/payment-status': 'Payment Status - Gutzo'
     };
     document.title = titles[route];
   }, []);
@@ -26,7 +27,7 @@ export function RouterProvider({ children }: { children: ReactNode }) {
   // Initialize route from browser URL
   useEffect(() => {
     const path = window.location.pathname as Route;
-    const validRoutes: Route[] = ['/', '/T&C', '/refund_policy', '/privacy_policy'];
+    const validRoutes: Route[] = ['/', '/T&C', '/refund_policy', '/privacy_policy', '/payment-status'];
     
     if (validRoutes.includes(path)) {
       // Scroll to top immediately on initial load if not on homepage
@@ -70,7 +71,7 @@ export function RouterProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const handlePopState = () => {
       const path = window.location.pathname as Route;
-      const validRoutes: Route[] = ['/', '/T&C', '/refund_policy', '/privacy_policy'];
+      const validRoutes: Route[] = ['/', '/T&C', '/refund_policy', '/privacy_policy', '/payment-status'];
       
       if (validRoutes.includes(path)) {
         window.scrollTo(0, 0);

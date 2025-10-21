@@ -750,6 +750,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Save cart to database (helper function)
+  // NOTE: This is ONLY for cart persistence (shopping cart),
+  // NOT for saving orders after payment. Order saving is handled separately.
   const saveCartToDB = async (userId: string, items: CartItem[]) => {
     try {
       console.log('💾 Saving cart to database...', { userId, items: items.length });

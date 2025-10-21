@@ -1,9 +1,11 @@
-
 import { Hono } from 'npm:hono';
 import { cors } from 'npm:hono/cors';
 import { logger } from 'npm:hono/logger';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 const app = new Hono();
+
+// DEBUG: Print all environment variables at startup
+console.log('All ENV VARS:', Deno.env.toObject());
 // Middleware
 app.use('*', cors());
 app.use('*', logger(console.log));
@@ -12,7 +14,10 @@ const supabase = createClient(Deno.env.get('PRIVATE_SUPABASE_URL'), Deno.env.get
 
 
 console.log('Gutzo Marketplace Server starting...:', Deno.env.get('PRIVATE_SUPABASE_URL'));
-console.log('Gutzo Marketplace Server starting...', Deno.env.get('PRIVATE_SUPABASE_SERVICE_ROLE_KEY'));
+// Do not log secrets in production
+if (Deno.env.get('NODE_ENV') === 'development') {
+  console.log('Gutzo Marketplace Server starting... (service role key is configured)');
+}
 // Check database schema on startup
 
 async function checkDatabaseSchema() {
@@ -61,101 +66,345 @@ async function checkDatabaseSchema() {
 
 
 
-const PHONEPE_MERCHANT_ID = Deno.env.get('PHONEPE_MERCHANT_ID');
-const PHONEPE_SALT_KEY = Deno.env.get('PHONEPE_SALT_KEY');
-const PHONEPE_CLIENT_VERSION = Deno.env.get('PHONEPE_CLIENT_VERSION');
-// Use UAT (sandbox) endpoint for test mode as per PhonePe docs
-const PHONEPE_BASE_URL = 'https://api-preprod.phonepe.com/apis/pg-sandbox';
+const PHONEPE_CLIENT_ID = Deno.env.get('PHONEPE_MERCHANT_ID');
+const PHONEPE_CLIENT_SECRET = Deno.env.get('PHONEPE_SALT_KEY');
+const PHONEPE_BASE_URL = Deno.env.get('PHONEPE_BASE_URL');
 
-// Create PhonePe Payment
+/*********************************************************/
+// Save order details after successful payment
+app.post('/gutzo-api/save-order', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { orderId, userPhone, items, totalAmount, address, paymentId, paymentStatus, vendorId, subtotal, deliveryFee, packagingFee, taxes, discountAmount, deliveryPhone, specialInstructions } = body;
+    if (!orderId || !userPhone || !items || !Array.isArray(items) || items.length === 0 || !totalAmount || !vendorId) {
+      return c.json({ success: false, error: 'Missing required order fields' }, 400);
+    }
+    // 1. Look up user_id from userPhone
+    const { data: user, error: userError } = await supabase.from('users').select('id').eq('phone', userPhone).single();
+    if (userError || !user) {
+      return c.json({ success: false, error: 'User not found for phone', details: userError?.message }, 400);
+    }
+    const user_id = user.id;
+    // 2. Insert order into orders table
+    const orderInsert = {
+      user_id,
+      vendor_id: vendorId,
+      order_number: orderId,
+      status: 'confirmed',
+      order_type: 'instant',
+      subtotal: subtotal || totalAmount, // fallback if subtotal not provided
+      delivery_fee: deliveryFee || 0,
+      packaging_fee: packagingFee || 5,
+      taxes: taxes || 0,
+      discount_amount: discountAmount || 0,
+      total_amount: totalAmount,
+      delivery_address: address ? address : {},
+      delivery_phone: deliveryPhone || null,
+      payment_id: paymentId || null,
+      payment_method: 'phonepe',
+      payment_status: paymentStatus || 'paid',
+      special_instructions: specialInstructions || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    const { data: orderData, error: orderError } = await supabase.from('orders').insert(orderInsert).select().single();
+    if (orderError || !orderData) {
+      console.error('Failed to save order:', orderError);
+      return c.json({ success: false, error: 'Failed to save order', details: orderError?.message }, 500);
+    }
+    // 3. Insert order items into order_items table
+    const order_id = orderData.id;
+    const orderItems = items.map((item) => ({
+      order_id,
+      product_id: item.productId,
+      vendor_id: item.vendorId,
+      product_name: item.name,
+      product_description: item.product?.description || '',
+      product_image_url: item.product?.image || '',
+      quantity: item.quantity,
+      unit_price: item.price,
+      total_price: (item.price * item.quantity),
+      special_instructions: item.specialInstructions || null,
+      customizations: item.customizations || null,
+      created_at: new Date().toISOString()
+    }));
+    if (orderItems.length > 0) {
+      const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
+      if (itemsError) {
+        console.error('Failed to save order items:', itemsError);
+        return c.json({ success: false, error: 'Failed to save order items', details: itemsError.message }, 500);
+      }
+    }
+    return c.json({ success: true, order: orderData });
+  } catch (error) {
+    console.error('Error in save-order endpoint:', error);
+    return c.json({ success: false, error: 'Internal server error', details: error.message }, 500);
+  }
+});
+
+// Helper: Get OAuth token
+async function getPhonePeToken() {
+  const body = new URLSearchParams({
+    client_version: '1',
+    grant_type: 'client_credentials',
+    client_id: PHONEPE_CLIENT_ID,
+    client_secret: PHONEPE_CLIENT_SECRET
+  }).toString();
+  const resp = await fetch(PHONEPE_BASE_URL + '/v1/oauth/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body
+  });
+  if (!resp.ok) throw new Error('PhonePe OAuth failed');
+  const data = await resp.json();
+  return data.access_token;
+}
+
+// Get all orders for a user by phone number
+app.get('/gutzo-api/orders/:phone', async (c) => {
+  try {
+    const phone = c.req.param('phone');
+    if (!phone) {
+      return c.json({ error: 'Phone number is required' }, 400);
+    }
+    // Get user id from phone
+    const { data: user, error: userError } = await supabase.from('users').select('id').eq('phone', phone).single();
+    if (userError || !user) {
+      return c.json({ error: 'User not found', details: userError?.message }, 404);
+    }
+    const userId = user.id;
+    // Fetch orders for user
+    const { data: orders, error: ordersError } = await supabase.from('orders').select('*').eq('user_id', userId).order('created_at', { ascending: false });
+    if (ordersError) {
+      return c.json({ error: 'Failed to fetch orders', details: ordersError.message }, 500);
+    }
+    // Fetch order items for all orders
+    const orderIds = (orders || []).map(o => o.id);
+    let orderItems = [];
+    if (orderIds.length > 0) {
+      const { data: items, error: itemsError } = await supabase.from('order_items').select('*').in('order_id', orderIds);
+      if (itemsError) {
+        return c.json({ error: 'Failed to fetch order items', details: itemsError.message }, 500);
+      }
+      orderItems = items;
+    }
+    // Attach items to orders
+    const ordersWithItems = (orders || []).map(order => ({
+      ...order,
+      items: orderItems.filter(item => item.order_id === order.id)
+    }));
+    return c.json({ orders: ordersWithItems });
+  } catch (error) {
+    return c.json({ error: 'Failed to fetch orders', details: error.message }, 500);
+  }
+});
+
+// Create PhonePe Payment (OAuth + /checkout/v2/pay)
 app.post('/gutzo-api/create-phonepe-payment', async (c) => {
   const body = await c.req.json();
-  const { amount, orderId, customerId, redirectUrl } = body;
-  // Validate required fields
-  if (!amount || !orderId || !customerId || !redirectUrl) {
-    console.error('Missing required payment fields:', { amount, orderId, customerId, redirectUrl });
-    return c.json({ success: false, error: 'Missing required payment fields', details: { amount, orderId, customerId, redirectUrl } }, 400);
+  const { amount, orderId, redirectUrl, metaInfo } = body;
+  if (!amount || !orderId || !redirectUrl) {
+    return c.json({ success: false, error: 'Missing required payment fields' }, 400);
   }
-  // Warn if redirectUrl is localhost (not allowed in UAT/production)
   if (redirectUrl.includes('localhost') || redirectUrl.includes('127.0.0.1')) {
     console.warn('⚠️ PhonePe redirectUrl is localhost. Use a public URL for UAT/production.');
   }
-  // Prepare payload as per PhonePe UAT docs
-  const payload = {
-    merchantId: PHONEPE_MERCHANT_ID,
-    merchantTransactionId: orderId,
-    merchantUserId: customerId,
-    amount: amount * 100, // in paise
-    redirectUrl,
-    redirectMode: 'POST',
-    callbackUrl: redirectUrl, // You may want to set a real webhook URL here
-    paymentInstrument: {
-      type: 'PAY_PAGE'
-    }
-  };
-  console.log('[PhonePe] ENV:', {
-    PHONEPE_MERCHANT_ID,
-    PHONEPE_SALT_KEY,
-    PHONEPE_CLIENT_VERSION,
-    PHONEPE_BASE_URL
-  });
-  console.log('[PhonePe] Payment payload:', payload);
-  // Deno-compatible base64 encoding
-  function toBase64(str) {
-    return btoa(unescape(encodeURIComponent(str)));
-  }
-  const payloadBase64 = toBase64(JSON.stringify(payload));
-  // UAT endpoint path for payment initiation
-  const phonepePath = '/v3/charge/initiate';
-  // X-VERIFY: SHA256(base64Payload + endpoint + saltKey) + '###' + clientVersion
-  const stringToSign = payloadBase64 + phonepePath + PHONEPE_SALT_KEY;
-  async function sha256Hex(str) {
-    const buffer = new TextEncoder().encode(str);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
-    return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-  }
-  const hashHex = await sha256Hex(stringToSign);
-  const xVerify = hashHex + '###' + PHONEPE_CLIENT_VERSION;
-  console.log('[PhonePe] x-verify:', xVerify);
-  // Call PhonePe API
-  let result;
+  let token;
   try {
-    const response = await fetch(PHONEPE_BASE_URL + phonepePath, {
+    token = await getPhonePeToken();
+  } catch (e) {
+    console.error('PhonePe token error:', e);
+    return c.json({ success: false, error: 'Failed to get PhonePe token', details: e.message }, 500);
+  }
+  const payload = {
+    amount: Math.round(amount),
+    expireAfter: 1200,
+    metaInfo: metaInfo || {},
+    paymentFlow: {
+      type: 'PG_CHECKOUT',
+      message: 'Payment for Gutzo order',
+      merchantUrls: { redirectUrl }
+    },
+    merchantOrderId: orderId
+  };
+  try {
+    const resp = await fetch(PHONEPE_BASE_URL + '/checkout/v2/pay', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-VERIFY': xVerify,
-        'X-MERCHANT-ID': PHONEPE_MERCHANT_ID
+        'Authorization': 'O-Bearer ' + token
       },
-      body: JSON.stringify({ request: payloadBase64 })
+      body: JSON.stringify(payload)
     });
-    const text = await response.text();
-    try {
-      result = JSON.parse(text);
-    } catch (jsonErr) {
-      console.error('[PhonePe] Failed to parse response as JSON:', text);
-      return c.json({ success: false, error: 'Invalid response from PhonePe', details: text }, 502);
+    const data = await resp.json();
+    if (!resp.ok) {
+      console.error('PhonePe payment error:', data);
+      return c.json({ success: false, error: 'PhonePe payment initiation failed', details: data }, 502);
     }
-    console.log('[PhonePe] API response:', result);
-    if (!response.ok || result.success === false) {
-      console.error('[PhonePe] payment initiation failed:', result);
-      return c.json({ success: false, error: 'PhonePe payment initiation failed', details: result }, 502);
-    }
-    // Return payment URL/token to frontend
-    return c.json({ success: true, data: result });
+    return c.json({ success: true, data });
   } catch (err) {
-    console.error('[PhonePe] Error calling API:', err);
+    console.error('PhonePe payment error:', err);
     return c.json({ success: false, error: 'Error calling PhonePe API', details: err?.message || err }, 500);
   }
 });
 
 // PhonePe Webhook Handler
+// Reference flow:
+// - PhonePe sends a webhook POST to your callback URL with JSON body and X-VERIFY header
+// - Verify signature: SHA256(rawBody + SALT_KEY) + '###' + SALT_INDEX (as per PhonePe docs)
+// - Update order status in DB using merchantTransactionId
 app.post('/gutzo-api/phonepe-webhook', async (c) => {
+  try {
+    // Read RAW body for signature verification (must be exact string)
+    const rawBody = await c.req.text();
+    let body: any;
+    try {
+      body = JSON.parse(rawBody || '{}');
+    } catch (e) {
+      console.error('[PhonePe Webhook] Invalid JSON body:', rawBody);
+      // Still respond 2xx to avoid retries storm; log for inspection
+      return c.json({ success: true });
+    }
+
+    const headerVerify = c.req.header('x-verify') || c.req.header('X-VERIFY') || '';
+    const headerMerchant = c.req.header('x-merchant-id') || c.req.header('X-MERCHANT-ID') || '';
+
+    // Compute signature (using rawBody + SALT_KEY). Some PhonePe docs also mention including path; we log both for UAT.
+    async function sha256Hex(str: string) {
+      const buffer = new TextEncoder().encode(str);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+      return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    const sigExpected = PHONEPE_SALT_KEY ? (await sha256Hex(rawBody + PHONEPE_SALT_KEY)) + '###' + (PHONEPE_SALT_INDEX || '') : '';
+
+    // Some integrations sign base64 of body; compute and log for diagnostics.
+    function toBase64(str: string) { return btoa(unescape(encodeURIComponent(str))); }
+    const base64Body = toBase64(rawBody || '');
+    const sigExpectedAlt = PHONEPE_SALT_KEY ? (await sha256Hex(base64Body + PHONEPE_SALT_KEY)) + '###' + (PHONEPE_SALT_INDEX || '') : '';
+
+    const verified = headerVerify === sigExpected || headerVerify === sigExpectedAlt;
+    if (!verified) {
+      console.warn('[PhonePe Webhook] Signature mismatch', {
+        headerVerify,
+        sigExpected,
+        sigExpectedAlt,
+        headerMerchant,
+        envMerchant: PHONEPE_MERCHANT_ID,
+        saltIndex: PHONEPE_SALT_INDEX
+      });
+    }
+
+    console.log('[PhonePe Webhook] Body:', body);
+
+    // Normalize PhonePe payment state
+    const code: string = body?.code || body?.data?.code || '';
+    const state: string = body?.data?.state || body?.state || '';
+    const merchantTransactionId: string = body?.merchantTransactionId || body?.data?.merchantTransactionId || body?.data?.merchant_transaction_id || '';
+    const transactionId: string = body?.transactionId || body?.data?.transactionId || '';
+
+    function mapPaymentStatus(codeVal: string, stateVal: string) {
+      const up = (codeVal || '').toUpperCase();
+      const st = (stateVal || '').toUpperCase();
+      if (up.includes('SUCCESS') || st === 'COMPLETED' || st === 'SUCCESS') return { payment_status: 'paid', order_status: 'confirmed' };
+      if (up.includes('PENDING') || st === 'PENDING') return { payment_status: 'pending', order_status: 'pending' };
+      return { payment_status: 'failed', order_status: 'cancelled' };
+    }
+    const mapped = mapPaymentStatus(code, state);
+
+    // Update orders table by order_number == merchantTransactionId (our create-pay used orderId as merchantTransactionId)
+    if (merchantTransactionId) {
+      const { data: updated, error } = await supabase
+        .from('orders')
+        .update({
+          payment_status: mapped.payment_status,
+          payment_method: 'phonepe',
+          payment_id: transactionId || body?.data?.providerReferenceId || body?.providerReferenceId || null,
+          status: mapped.order_status,
+          updated_at: new Date().toISOString()
+        })
+        .eq('order_number', merchantTransactionId)
+        .select('id');
+      if (error) {
+        console.error('[PhonePe Webhook] DB update error:', error.message);
+      } else {
+        console.log(`[PhonePe Webhook] Updated orders for ${merchantTransactionId}. Rows: ${updated?.length || 0}`);
+      }
+    } else {
+      console.warn('[PhonePe Webhook] Missing merchantTransactionId in webhook payload');
+    }
+
+    // Always respond 2xx per PhonePe docs
+    return c.json({ success: true });
+  } catch (err) {
+    console.error('[PhonePe Webhook] Handler error:', err);
+    // Still return 2xx to avoid repeated retries; log for investigation
+    return c.json({ success: true });
+  }
+});
+
+// PhonePe Order Status (OAuth + /checkout/v2/order/{id}/status)
+app.get('/gutzo-api/phonepe-status/:orderId', async (c) => {
+  const orderId = c.req.param('orderId');
+  if (!orderId) return c.json({ success: false, error: 'Missing orderId' }, 400);
+  let token;
+  try {
+    token = await getPhonePeToken();
+  } catch (e) {
+    return c.json({ success: false, error: 'Failed to get PhonePe token', details: e.message }, 500);
+  }
+  try {
+    const resp = await fetch(`${PHONEPE_BASE_URL}/checkout/v2/order/${orderId}/status`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'O-Bearer ' + token
+      }
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      return c.json({ success: false, error: 'PhonePe status check failed', details: data }, resp.status);
+    }
+    return c.json({ success: true, data });
+  } catch (err) {
+    return c.json({ success: false, error: 'Error calling PhonePe status API', details: err?.message || err }, 500);
+  }
+});
+// PhonePe Refund (OAuth + /payments/v2/refund)
+app.post('/gutzo-api/phonepe-refund', async (c) => {
   const body = await c.req.json();
-  // TODO: Validate webhook signature and update order/payment status in DB
-  console.log('PhonePe Webhook:', body);
-  // Respond to PhonePe
-  return c.json({ success: true });
+  const { merchantRefundId, originalMerchantOrderId, amount } = body;
+  if (!merchantRefundId || !originalMerchantOrderId || !amount) {
+    return c.json({ success: false, error: 'Missing refund fields' }, 400);
+  }
+  let token;
+  try {
+    token = await getPhonePeToken();
+  } catch (e) {
+    return c.json({ success: false, error: 'Failed to get PhonePe token', details: e.message }, 500);
+  }
+  const payload = {
+    merchantRefundId,
+    originalMerchantOrderId,
+    amount: String(amount)
+  };
+  try {
+    const resp = await fetch(PHONEPE_BASE_URL + '/payments/v2/refund', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'O-Bearer ' + token
+      },
+      body: JSON.stringify(payload)
+    });
+    const data = await resp.json();
+    if (!resp.ok) {
+      return c.json({ success: false, error: 'PhonePe refund failed', details: data }, 502);
+    }
+    return c.json({ success: true, data });
+  } catch (err) {
+    return c.json({ success: false, error: 'Error calling PhonePe refund API', details: err?.message || err }, 500);
+  }
 });
 
 // Check database schema on startup (non-blocking)

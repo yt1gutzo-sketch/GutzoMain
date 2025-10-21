@@ -558,9 +558,12 @@ export function InstantOrderPanel({
                 const amount = totalAmount;
                 const redirectUrl = window.location.origin + '/payment-status';
                 try {
+                  // Persist order id for status page
+                  try { sessionStorage.setItem('last_order_id', orderId); } catch {}
                   const data = await apiService.createPhonePePayment({ amount, orderId, customerId, redirectUrl });
-                  if (data && data.data && data.data.data && data.data.data.instrumentResponse && data.data.data.instrumentResponse.redirectInfo) {
-                    window.location.href = data.data.data.instrumentResponse.redirectInfo.url;
+                  console.log('PhonePe payment API response:', data);
+                  if (data && data.data && data.data.redirectUrl) {
+                    window.location.href = data.data.redirectUrl;
                   } else {
                     alert('Failed to initiate PhonePe payment.');
                   }
