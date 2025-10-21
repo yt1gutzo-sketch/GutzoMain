@@ -51,12 +51,37 @@ export default function PaymentStatusPage() {
                 try {
                   // Prepare order payload
                   const vendor = getCurrentVendor();
+                  // GST logic (match CartPanel):
+                  // - Items GST @5% (included in item prices)
+                  // - Delivery fee ₹50 incl. 18% GST
+                  // - Platform fee ₹10 incl. 18% GST
+                  const ITEMS_GST_RATE = 0.05;
+                  const FEES_GST_RATE = 0.18;
+                  const DELIVERY_FEE = 50;
+                  const PLATFORM_FEE = 10;
+
+                  // Calculate GST included in items
+                  const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                  const includedGstItems = subtotal - (subtotal / (1 + ITEMS_GST_RATE));
+                  // GST in fees
+                  const includedGstDelivery = DELIVERY_FEE - (DELIVERY_FEE / (1 + FEES_GST_RATE));
+                  const includedGstPlatform = PLATFORM_FEE - (PLATFORM_FEE / (1 + FEES_GST_RATE));
+                  const includedGstFees = includedGstDelivery + includedGstPlatform;
+                  const totalGst = includedGstItems + includedGstFees;
+
+                  const trueTotal = subtotal + DELIVERY_FEE + PLATFORM_FEE;
                   const payload = {
                     orderId: id,
                     userPhone: user?.phone,
                     items,
-                    totalAmount,
+                    totalAmount: Number(trueTotal.toFixed(2)),
                     vendorId: vendor?.id,
+                    subtotal: Number(subtotal.toFixed(2)),
+                    deliveryFee: DELIVERY_FEE,
+                    platformFee: PLATFORM_FEE,
+                    taxes: Number(totalGst.toFixed(2)),
+                    gst_items: Number(includedGstItems.toFixed(2)),
+                    gst_fees: Number(includedGstFees.toFixed(2)),
                     // Add more fields as needed (address, paymentId, etc.)
                   };
                   const resp = await apiService.saveOrder(payload);

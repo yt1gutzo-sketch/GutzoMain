@@ -75,7 +75,7 @@ const PHONEPE_BASE_URL = Deno.env.get('PHONEPE_BASE_URL');
 app.post('/gutzo-api/save-order', async (c) => {
   try {
     const body = await c.req.json();
-    const { orderId, userPhone, items, totalAmount, address, paymentId, paymentStatus, vendorId, subtotal, deliveryFee, packagingFee, taxes, discountAmount, deliveryPhone, specialInstructions } = body;
+  const { orderId, userPhone, items, totalAmount, address, paymentId, paymentStatus, vendorId, subtotal, deliveryFee, packagingFee, taxes, discountAmount, deliveryPhone, specialInstructions, platformFee, gst_items, gst_fees } = body;
     if (!orderId || !userPhone || !items || !Array.isArray(items) || items.length === 0 || !totalAmount || !vendorId) {
       return c.json({ success: false, error: 'Missing required order fields' }, 400);
     }
@@ -104,6 +104,9 @@ app.post('/gutzo-api/save-order', async (c) => {
       payment_method: 'phonepe',
       payment_status: paymentStatus || 'paid',
       special_instructions: specialInstructions || null,
+      platform_fee: platformFee || 0,
+      gst_items: gst_items || 0,
+      gst_fees: gst_fees || 0,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
@@ -173,8 +176,12 @@ app.get('/gutzo-api/orders/:phone', async (c) => {
       return c.json({ error: 'User not found', details: userError?.message }, 404);
     }
     const userId = user.id;
-    // Fetch orders for user
-    const { data: orders, error: ordersError } = await supabase.from('orders').select('*').eq('user_id', userId).order('created_at', { ascending: false });
+    // Fetch orders for user, join vendors to get vendor name
+    const { data: orders, error: ordersError } = await supabase
+      .from('orders')
+      .select('*, vendor:vendor_id(name), platform_fee, gst_items, gst_fees')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
     if (ordersError) {
       return c.json({ error: 'Failed to fetch orders', details: ordersError.message }, 500);
     }
@@ -188,9 +195,10 @@ app.get('/gutzo-api/orders/:phone', async (c) => {
       }
       orderItems = items;
     }
-    // Attach items to orders
+    // Attach items to orders and flatten vendor name
     const ordersWithItems = (orders || []).map(order => ({
       ...order,
+      vendor_name: order.vendor?.name || '-',
       items: orderItems.filter(item => item.order_id === order.id)
     }));
     return c.json({ orders: ordersWithItems });
